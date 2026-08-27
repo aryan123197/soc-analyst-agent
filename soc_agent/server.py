@@ -1,8 +1,12 @@
 """HTTP entrypoint for Cloud Run: exposes the pipeline as a service.
 
 POST /ingest runs a single item through the full pipeline and returns the
-result (including the reasoning trace). GET /healthz is the Cloud Run health
-check.
+result (including the reasoning trace). GET /health is the health check
+endpoint (deliberately not /healthz -- that exact literal path gets
+intercepted by Google's frontend before reaching Cloud Run, independent of
+what routes the app itself defines; confirmed by comparing headers on /healthz
+vs /docs -- only /docs carried Cloud Run's `server: Google Frontend` and
+`x-cloud-trace-context` headers).
 """
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -29,8 +33,8 @@ class IngestResponse(BaseModel):
     trace: str
 
 
-@app.get("/healthz")
-def healthz():
+@app.get("/health")
+def health():
     return {"status": "ok"}
 
 
