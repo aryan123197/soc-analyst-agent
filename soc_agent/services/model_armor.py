@@ -4,6 +4,7 @@ Screens untrusted content crossing the ingestion -> triage boundary for:
   - prompt_injection
   - tool_poisoning
   - pii_exfil
+  - malicious_uri (phishing/C2 links embedded in content)
 
 This module exposes a stable `screen(content) -> ArmorResult` interface.
 `HeuristicModelArmor` is a local regex-based stand-in with no GCP dependency.
@@ -18,12 +19,37 @@ and get caught by the PI-and-jailbreak filter; VertexModelArmor reports them
 as threat_type="prompt_injection" rather than inventing a category the real
 service doesn't have.
 """
+import base64
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-ThreatType = Literal["prompt_injection", "tool_poisoning", "pii_exfil"]
+ThreatType = Literal["prompt_injection", "tool_poisoning", "pii_exfil", "malicious_uri"]
+
+# Model Armor screens literal text only -- a base64-encoded instruction with no
+# plaintext framing around it ("please decode this: <b64>") passes through clean,
+# because there's no suspicious *text* to flag. Confirmed empirically: a bare
+# base64 blob of "Ignore all previous instructions..." with no surrounding hint
+# scored clean against the real API. If anything downstream ever decodes a field
+# from ticket/email content (attachments, encoded API payloads -- a normal thing
+# to do), the decoded text re-enters the reasoning context completely unscreened.
+# _decode_candidates finds base64-looking substrings and decodes the ones that
+# produce valid printable text, so screen() can pass them through Model Armor too.
+_BASE64_CANDIDATE = re.compile(r"[A-Za-z0-9+/]{20,}={0,2}")
+
+
+def _decode_candidates(content: str) -> list[str]:
+    decoded: list[str] = []
+    for match in _BASE64_CANDIDATE.findall(content):
+        try:
+            raw = base64.b64decode(match, validate=True)
+            text = raw.decode("utf-8")
+        except Exception:
+            continue
+        if text.isprintable() and text.strip():
+            decoded.append(text)
+    return decoded
 
 
 @dataclass
@@ -44,14 +70,33 @@ class ArmorResult:
 
 
 class BaseModelArmor:
-    def screen(self, content: str) -> ArmorResult:
+    def _screen_raw(self, content: str) -> ArmorResult:
         raise NotImplementedError
+
+    def screen(self, content: str) -> ArmorResult:
+        """Screens content as-is, plus any base64-decodable substrings within it.
+
+        Blocks if either the literal content or a decoded candidate trips a filter.
+        The decoded-candidate result is returned as-is (its threat_type/confidence
+        reflect whatever the decoded text tripped) so a case gets meaningfully
+        categorized rather than a generic "something in here was bad."
+        """
+        result = self._screen_raw(content)
+        if result.verdict == "blocked":
+            return result
+
+        for decoded in _decode_candidates(content):
+            decoded_result = self._screen_raw(decoded)
+            if decoded_result.verdict == "blocked":
+                return decoded_result
+
+        return result
 
 
 class PassthroughModelArmor(BaseModelArmor):
     """No-op screener — used to demo the 'before' (unprotected) state only."""
 
-    def screen(self, content: str) -> ArmorResult:
+    def _screen_raw(self, content: str) -> ArmorResult:
         return ArmorResult(
             verdict="clean",
             threat_type=None,
@@ -86,6 +131,11 @@ _PII_EXFIL_PATTERNS = [
     r"dump (the )?(database|user table|credentials)",
 ]
 
+# No local heuristic for malicious_uri: real threat-intel-backed URL reputation isn't
+# something a regex can approximate without giving false confidence. This category is
+# only covered by VertexModelArmor (real Model Armor's malicious-URI filter); the local
+# heuristic will never flag a URL, by design -- offline dev mode is not URL-safe.
+
 
 class HeuristicModelArmor(BaseModelArmor):
     """Local heuristic screener: regex-signal based, good enough for a hackathon demo.
@@ -106,7 +156,7 @@ class HeuristicModelArmor(BaseModelArmor):
                 return 0.9, match.group(0)
         return 0.0, None
 
-    def screen(self, content: str) -> ArmorResult:
+    def _screen_raw(self, content: str) -> ArmorResult:
         now = datetime.now(timezone.utc).isoformat()
 
         checks: list[tuple[ThreatType, list[str]]] = [
@@ -154,7 +204,7 @@ class VertexModelArmor(BaseModelArmor):
         self._template_name = self._client.template_path(project, location, template_id)
         self._modelarmor_v1 = modelarmor_v1
 
-    def screen(self, content: str) -> ArmorResult:
+    def _screen_raw(self, content: str) -> ArmorResult:
         m = self._modelarmor_v1
         now = datetime.now(timezone.utc).isoformat()
 
@@ -173,6 +223,7 @@ class VertexModelArmor(BaseModelArmor):
         filter_results = result.filter_results  # map: filter name -> FilterResult
         pj = filter_results.get("pi_and_jailbreak")
         sdp = filter_results.get("sdp")
+        malicious_uri = filter_results.get("malicious_uris")
 
         confidence_rank = {
             m.DetectionConfidenceLevel.HIGH: 0.95,
@@ -187,6 +238,11 @@ class VertexModelArmor(BaseModelArmor):
                 threat_type="prompt_injection",
                 confidence=confidence_rank.get(confidence_level, 0.9),
                 screened_at=now,
+            )
+
+        if malicious_uri is not None and malicious_uri.malicious_uri_filter_result.match_state == m.FilterMatchState.MATCH_FOUND:
+            return ArmorResult(
+                verdict="blocked", threat_type="malicious_uri", confidence=0.9, screened_at=now
             )
 
         if sdp is not None:
