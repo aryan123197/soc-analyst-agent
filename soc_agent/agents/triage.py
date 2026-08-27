@@ -59,7 +59,9 @@ def _fallback_classify(content: str) -> tuple[str, str, str]:
 
 
 def _classify_with_llm(sender: str, channel: str, content: str, memory_context: str) -> tuple[str, str, str]:
-    client = genai.Client()
+    client = genai.Client(
+        vertexai=True, project=config.GOOGLE_CLOUD_PROJECT, location=config.GOOGLE_CLOUD_LOCATION
+    )
     prompt = _TRIAGE_PROMPT.format(
         sender=sender, channel=channel, content=content, memory_context=memory_context
     )

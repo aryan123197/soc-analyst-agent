@@ -81,9 +81,11 @@ class FirestoreMemoryBank:
         )
 
     def query_by_subject(self, scope: str, subject_key: str) -> list[dict[str, Any]]:
+        from google.cloud.firestore_v1.base_query import FieldFilter
+
         docs = (
-            self._collection.where("scope", "==", scope)
-            .where("subject_key", "==", subject_key)
+            self._collection.where(filter=FieldFilter("scope", "==", scope))
+            .where(filter=FieldFilter("subject_key", "==", subject_key))
             .stream()
         )
         return [d.to_dict() for d in docs]
