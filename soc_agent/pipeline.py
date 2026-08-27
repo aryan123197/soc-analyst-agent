@@ -18,6 +18,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from soc_agent import config
 from soc_agent.agents import action, ingestion, triage
 from soc_agent.services import model_armor, store, trace
 
@@ -39,7 +40,12 @@ def run_pipeline(
 ) -> PipelineResult:
     item, tr = ingestion.ingest(source_channel=source_channel, sender=sender, raw_text=raw_text)
 
-    armor = model_armor.get_model_armor(enabled=armor_enabled)
+    armor = model_armor.get_model_armor(
+        enabled=armor_enabled,
+        project=config.GOOGLE_CLOUD_PROJECT if config.USE_VERTEX_MODEL_ARMOR else None,
+        location=config.GOOGLE_CLOUD_LOCATION,
+        template_id=config.MODEL_ARMOR_TEMPLATE_ID,
+    )
     armor_result = armor.screen(item.raw_text)
 
     case_store = store.get_case_store()

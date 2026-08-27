@@ -5,10 +5,18 @@ Screens untrusted content crossing the ingestion -> triage boundary for:
   - tool_poisoning
   - pii_exfil
 
-This module exposes a stable `screen(content) -> ArmorResult` interface. The
-default implementation (`HeuristicModelArmor`) is a local stand-in so the
-pipeline is runnable without GCP access. Swap in `VertexModelArmor` once GEAP
-Model Armor access is confirmed on the project (see task: verify GEAP access).
+This module exposes a stable `screen(content) -> ArmorResult` interface.
+`HeuristicModelArmor` is a local regex-based stand-in with no GCP dependency.
+`VertexModelArmor` calls the real GEAP Model Armor API (google-cloud-modelarmor)
+against a pre-provisioned Template (see soc_agent/scripts/provision_model_armor.py).
+
+Note: Model Armor's native filter categories are PI-and-jailbreak, SDP
+(sensitive data), malicious URI, and RAI — there is no dedicated
+"tool_poisoning" category. Tool-poisoning-shaped payloads (fake tool
+descriptions instructing improper escalation) are jailbreak-shaped prompts
+and get caught by the PI-and-jailbreak filter; VertexModelArmor reports them
+as threat_type="prompt_injection" rather than inventing a category the real
+service doesn't have.
 """
 import re
 from dataclasses import dataclass
@@ -133,5 +141,78 @@ class HeuristicModelArmor(BaseModelArmor):
         )
 
 
-def get_model_armor(enabled: bool = True) -> BaseModelArmor:
-    return HeuristicModelArmor() if enabled else PassthroughModelArmor()
+class VertexModelArmor(BaseModelArmor):
+    """Real GEAP Model Armor, via google-cloud-modelarmor against a pre-provisioned Template."""
+
+    def __init__(self, project: str, location: str, template_id: str):
+        from google.cloud import modelarmor_v1
+
+        api_endpoint = f"modelarmor.{location}.rep.googleapis.com"
+        self._client = modelarmor_v1.ModelArmorClient(
+            client_options={"api_endpoint": api_endpoint}
+        )
+        self._template_name = self._client.template_path(project, location, template_id)
+        self._modelarmor_v1 = modelarmor_v1
+
+    def screen(self, content: str) -> ArmorResult:
+        m = self._modelarmor_v1
+        now = datetime.now(timezone.utc).isoformat()
+
+        request = m.SanitizeUserPromptRequest(
+            name=self._template_name,
+            user_prompt_data=m.DataItem(text=content),
+        )
+        response = self._client.sanitize_user_prompt(request=request)
+        result = response.sanitization_result
+
+        if result.filter_match_state != m.FilterMatchState.MATCH_FOUND:
+            return ArmorResult(
+                verdict="clean", threat_type=None, confidence=1.0, screened_at=now
+            )
+
+        filter_results = result.filter_results  # map: filter name -> FilterResult
+        pj = filter_results.get("pi_and_jailbreak")
+        sdp = filter_results.get("sdp")
+
+        confidence_rank = {
+            m.DetectionConfidenceLevel.HIGH: 0.95,
+            m.DetectionConfidenceLevel.MEDIUM_AND_ABOVE: 0.75,
+            m.DetectionConfidenceLevel.LOW_AND_ABOVE: 0.5,
+        }
+
+        if pj is not None and pj.pi_and_jailbreak_filter_result.match_state == m.FilterMatchState.MATCH_FOUND:
+            confidence_level = pj.pi_and_jailbreak_filter_result.confidence_level
+            return ArmorResult(
+                verdict="blocked",
+                threat_type="prompt_injection",
+                confidence=confidence_rank.get(confidence_level, 0.9),
+                screened_at=now,
+            )
+
+        if sdp is not None:
+            sdp_result = sdp.sdp_filter_result
+            sdp_match = (
+                sdp_result.inspect_result.match_state == m.FilterMatchState.MATCH_FOUND
+                or sdp_result.deidentify_result.match_state == m.FilterMatchState.MATCH_FOUND
+            )
+            if sdp_match:
+                return ArmorResult(
+                    verdict="blocked", threat_type="pii_exfil", confidence=0.9, screened_at=now
+                )
+
+        return ArmorResult(
+            verdict="blocked", threat_type="prompt_injection", confidence=0.7, screened_at=now
+        )
+
+
+def get_model_armor(
+    enabled: bool = True,
+    project: Optional[str] = None,
+    location: Optional[str] = None,
+    template_id: Optional[str] = None,
+) -> BaseModelArmor:
+    if not enabled:
+        return PassthroughModelArmor()
+    if project and template_id:
+        return VertexModelArmor(project=project, location=location or "us-central1", template_id=template_id)
+    return HeuristicModelArmor()
