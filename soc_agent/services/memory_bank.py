@@ -1,9 +1,9 @@
-"""Memory Bank stand-in: cross-session recall for the triage agent.
+"""Memory Bank: cross-session recall for the triage agent.
 
-Schema follows the memory_entry shape in the project spec. Backed by the same
-local/Firestore split as the case store. In production this maps to GEAP's
-Memory Bank component; this local implementation keeps the same read/write
-shape so swapping it out later is a one-file change.
+Schema follows the memory_entry shape in the project spec. Three backends
+behind one read/write interface: `VertexMemoryBank` calls the real GEAP Memory
+Bank API, with `LocalMemoryBank` (JSON file) and `FirestoreMemoryBank` as the
+no-GCP and no-Agent-Engine fallbacks.
 """
 import json
 import threading
@@ -91,7 +91,76 @@ class FirestoreMemoryBank:
         return [d.to_dict() for d in docs]
 
 
+class VertexMemoryBank:
+    """Real GEAP Memory Bank, via google-cloud-aiplatform's MemoryBankServiceClient.
+
+    Requires a pre-provisioned Agent Engine (ReasoningEngine) with a
+    memory_bank_config — see soc_agent/scripts/provision_memory_bank.py. Every
+    Memory Bank call is parented to that resource; there is no project-level
+    Memory Bank.
+
+    Two shape mismatches worth naming, since this is v1beta1-only surface:
+
+    1. The Memory proto has no arbitrary-metadata field (its fields are name,
+       fact, scope, display_name, description, create_time, update_time,
+       ttl/expire_time). `case_ref` is carried in `description` because that is
+       the only free-form field that round-trips. It is not put in `scope` —
+       scope is the retrieval filter, so a unique case_ref per entry would make
+       every memory unretrievable by subject.
+    2. create_memory is a long-running operation, so writes block on .result().
+       Retrieval is synchronous.
+    """
+
+    def __init__(self, project: str, location: str, agent_engine_id: str):
+        from google.cloud import aiplatform_v1beta1
+
+        self._v1beta1 = aiplatform_v1beta1
+        self._client = aiplatform_v1beta1.MemoryBankServiceClient(
+            client_options={"api_endpoint": f"{location}-aiplatform.googleapis.com"}
+        )
+        self._parent = self._client.reasoning_engine_path(
+            project, location, agent_engine_id
+        )
+
+    def write_entry(
+        self, scope: str, subject_key: str, content: str, case_ref: str
+    ) -> None:
+        memory = self._v1beta1.Memory(
+            fact=content,
+            description=case_ref,
+            scope={"scope": scope, "subject_key": subject_key},
+        )
+        self._client.create_memory(parent=self._parent, memory=memory).result()
+
+    def query_by_subject(self, scope: str, subject_key: str) -> list[dict[str, Any]]:
+        response = self._client.retrieve_memories(
+            request=self._v1beta1.RetrieveMemoriesRequest(
+                parent=self._parent,
+                scope={"scope": scope, "subject_key": subject_key},
+                simple_retrieval_params=self._v1beta1.RetrieveMemoriesRequest.SimpleRetrievalParams(),
+            )
+        )
+        return [
+            {
+                "scope": scope,
+                "subject_key": subject_key,
+                "content": rm.memory.fact,
+                "case_ref": rm.memory.description,
+                "created_at": rm.memory.create_time.rfc3339()
+                if rm.memory.create_time
+                else "",
+            }
+            for rm in response.retrieved_memories
+        ]
+
+
 def get_memory_bank():
+    if config.USE_VERTEX_MEMORY_BANK:
+        return VertexMemoryBank(
+            project=config.GOOGLE_CLOUD_PROJECT,
+            location=config.GOOGLE_CLOUD_LOCATION,
+            agent_engine_id=config.AGENT_ENGINE_ID,
+        )
     if config.USE_LOCAL_STORE:
         return LocalMemoryBank()
     return FirestoreMemoryBank()
