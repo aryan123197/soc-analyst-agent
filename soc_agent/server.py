@@ -8,10 +8,12 @@ what routes the app itself defines; confirmed by comparing headers on /healthz
 vs /docs -- only /docs carried Cloud Run's `server: Google Frontend` and
 `x-cloud-trace-context` headers).
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from soc_agent.pipeline import run_pipeline
+from soc_agent.services import trace as trace_service
 
 app = FastAPI(title="SOC Analyst Agent")
 
@@ -55,3 +57,50 @@ def ingest(req: IngestRequest):
         action_taken=result.action_record.type if result.action_record else None,
         trace=result.trace.render(),
     )
+
+
+@app.get("/traces/{case_id}")
+def get_trace(case_id: str):
+    trace_data = trace_service.get_trace_store().get_by_case_id(case_id)
+    if trace_data is None:
+        raise HTTPException(status_code=404, detail=f"no trace found for case_id={case_id}")
+    return trace_data
+
+
+@app.get("/traces", response_class=HTMLResponse)
+def list_traces_view():
+    traces = trace_service.get_trace_store().list_all()
+    traces.sort(key=lambda t: t["steps"][0]["timestamp"] if t["steps"] else "", reverse=True)
+
+    rows = []
+    for t in traces:
+        for step in t["steps"]:
+            rows.append(
+                f"<tr><td>{t['case_id']}</td><td>{t['trace_id']}</td>"
+                f"<td>{step['timestamp']}</td><td>{step['hop']}</td>"
+                f"<td>{step['detail']}</td></tr>"
+            )
+
+    table_rows = "\n".join(rows) if rows else "<tr><td colspan=5>No traces recorded yet.</td></tr>"
+
+    return f"""<!doctype html>
+<html>
+<head>
+<title>SOC Analyst Agent — Reasoning Traces</title>
+<style>
+  body {{ font-family: monospace; margin: 2rem; }}
+  table {{ border-collapse: collapse; width: 100%; }}
+  th, td {{ border: 1px solid #ccc; padding: 6px 10px; text-align: left; font-size: 13px; }}
+  th {{ background: #222; color: #fff; }}
+  tr:nth-child(even) {{ background: #f7f7f7; }}
+</style>
+</head>
+<body>
+<h2>SOC Analyst Agent — Reasoning Traces</h2>
+<p>Every pipeline hop for every case, most recent first.</p>
+<table>
+<tr><th>Case ID</th><th>Trace ID</th><th>Timestamp</th><th>Hop</th><th>Detail</th></tr>
+{table_rows}
+</table>
+</body>
+</html>"""

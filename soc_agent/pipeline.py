@@ -62,6 +62,7 @@ def run_pipeline(
 
     if armor_result.verdict == "blocked":
         action.quarantine(item.case_id, threat_type=armor_result.threat_type or "unknown", tr=tr)
+        trace.persist_trace(tr)
         return PipelineResult(
             case_id=item.case_id,
             armor_result=armor_result,
@@ -89,6 +90,7 @@ def run_pipeline(
         ),
     )
     tr.log("memory_bank", f"wrote summary for sender domain of {sender}")
+    trace.persist_trace(tr)
 
     return PipelineResult(
         case_id=item.case_id,
