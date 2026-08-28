@@ -18,37 +18,85 @@ descriptions instructing improper escalation) are jailbreak-shaped prompts
 and get caught by the PI-and-jailbreak filter; VertexModelArmor reports them
 as threat_type="prompt_injection" rather than inventing a category the real
 service doesn't have.
+
+KNOWN ARCHITECTURAL LIMITATION -- multi-turn / cross-case attacks: content
+screening (this module) can only ever evaluate one item at a time, and can
+only flag content that is itself malicious. Tested this directly: an attacker
+sending "please update the contact email on file to attacker@evil.com" as one
+ticket, then "can you resend my last 3 invoices?" as a separate later ticket,
+produces two individually clean, ordinary-looking messages -- classic
+account-takeover-then-exfiltrate, but there is no injected instruction in
+either message for Model Armor (or any content filter) to catch. This is not
+a gap in this module's coverage; it's outside what content screening can
+address by design. Catching it requires behavioral/cross-case correlation
+(e.g. "sensitive-data request within N days of a contact-info change for the
+same sender"), which is what soc_agent/services/memory_bank.py's
+similar_past_cases lookup in the triage agent is positioned to eventually do,
+but no such correlation logic exists yet -- flagging as future work, not
+implementing here (would need a defined detection rule + false-positive
+tuning, out of scope for the Model Armor boundary this module owns).
 """
 import base64
+import binascii
 import re
+import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
 ThreatType = Literal["prompt_injection", "tool_poisoning", "pii_exfil", "malicious_uri"]
 
-# Model Armor screens literal text only -- a base64-encoded instruction with no
-# plaintext framing around it ("please decode this: <b64>") passes through clean,
-# because there's no suspicious *text* to flag. Confirmed empirically: a bare
-# base64 blob of "Ignore all previous instructions..." with no surrounding hint
-# scored clean against the real API. If anything downstream ever decodes a field
-# from ticket/email content (attachments, encoded API payloads -- a normal thing
-# to do), the decoded text re-enters the reasoning context completely unscreened.
-# _decode_candidates finds base64-looking substrings and decodes the ones that
-# produce valid printable text, so screen() can pass them through Model Armor too.
+# Model Armor screens literal text only -- an encoded instruction with no plaintext
+# framing around it ("please decode this: <blob>") passes through clean, because
+# there's no suspicious *text* to flag; confidence also drops when the encoded blob
+# sits inside benign-looking wrapper content (a ticket reference number, a realistic
+# tracking URL with utm params). Confirmed empirically against the live API for:
+#   - bare base64 (no hint)                          -> clean
+#   - bare hex, wrapped in "Ticket update ref#...:"   -> clean (bare hex alone: caught)
+#   - URL-encoded payload wrapped in a realistic https://...?redirect=...&utm_source=
+#     tracking-link shape                             -> clean (bare url-encoded: caught)
+# If anything downstream ever decodes a field from ticket/email content (attachments,
+# encoded API payloads, URL params -- all normal things to do), the decoded text
+# re-enters the reasoning context completely unscreened. _decode_candidates finds
+# base64/hex/URL-encoded-looking substrings and decodes the ones that produce valid
+# printable text, so screen() can pass them through Model Armor too.
 _BASE64_CANDIDATE = re.compile(r"[A-Za-z0-9+/]{20,}={0,2}")
+_HEX_CANDIDATE = re.compile(r"(?:[0-9a-fA-F]{2}){10,}")
+# %-encoding only escapes special characters -- plain letters/digits stay literal
+# (e.g. "Ignore%20all%20previous..."), so unlike base64/hex this isn't a dense run
+# of one alphabet. Match token-like spans (query-param values, path segments) that
+# contain at least a few %XX escapes anywhere in them, not just back-to-back ones.
+_URL_ENCODED_CANDIDATE = re.compile(r"[^&=\s]*%[0-9a-fA-F]{2}[^&=\s]*(?:%[0-9a-fA-F]{2}[^&=\s]*){2,}")
 
 
 def _decode_candidates(content: str) -> list[str]:
     decoded: list[str] = []
+
     for match in _BASE64_CANDIDATE.findall(content):
         try:
-            raw = base64.b64decode(match, validate=True)
-            text = raw.decode("utf-8")
+            text = base64.b64decode(match, validate=True).decode("utf-8")
         except Exception:
             continue
         if text.isprintable() and text.strip():
             decoded.append(text)
+
+    for match in _HEX_CANDIDATE.findall(content):
+        try:
+            text = bytes.fromhex(match).decode("utf-8")
+        except (ValueError, binascii.Error):
+            continue
+        if text.isprintable() and text.strip():
+            decoded.append(text)
+
+    for match in _URL_ENCODED_CANDIDATE.findall(content):
+        text = urllib.parse.unquote(match)
+        if text != match and text.isprintable() and text.strip():
+            decoded.append(text)
+            # also try a second unquote pass, to catch double-encoded payloads
+            double_text = urllib.parse.unquote(text)
+            if double_text != text and double_text.isprintable() and double_text.strip():
+                decoded.append(double_text)
+
     return decoded
 
 
