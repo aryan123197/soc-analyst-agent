@@ -2,8 +2,12 @@
 
 These pin the two places the real Memory Bank proto doesn't line up with the
 memory_entry shape the rest of the pipeline expects: case_ref has to survive a
-round trip through `description`, and (scope, subject_key) has to become the
-scope map that retrieval filters on.
+round trip encoded in the fact text (the server drops `description` and
+`display_name`), and (scope, subject_key) has to become the scope map that
+retrieval filters on.
+
+The fakes echo only the fields the live API was observed to persist -- see
+test_retrieve_ignores_server_dropped_description.
 """
 from google.cloud import aiplatform_v1beta1
 
@@ -60,9 +64,9 @@ def test_write_entry_maps_content_and_case_ref(monkeypatch):
     assert len(client.created) == 1
     parent, memory = client.created[0]
     assert parent == "projects/proj/locations/us-central1/reasoningEngines/123"
-    assert memory.fact == "credential-harvesting lure"
-    # case_ref rides in description -- the only free-form field that round-trips
-    assert memory.description == "case-001"
+    # case_ref is encoded into the fact text -- `description` does not survive
+    # the write, and `scope` is an exact-match filter so it can't carry it
+    assert memory.fact == "[case:case-001] credential-harvesting lure"
     assert dict(memory.scope) == {
         "scope": "triage-agent",
         "subject_key": "evil-corp.test",
@@ -73,7 +77,7 @@ def test_query_by_subject_returns_memory_entry_shape(monkeypatch):
     retrieved = [
         aiplatform_v1beta1.RetrieveMemoriesResponse.RetrievedMemory(
             memory=aiplatform_v1beta1.Memory(
-                fact="credential-harvesting lure", description="case-001"
+                fact="[case:case-001] credential-harvesting lure"
             )
         )
     ]
@@ -100,3 +104,23 @@ def test_query_by_subject_returns_memory_entry_shape(monkeypatch):
         "scope": "triage-agent",
         "subject_key": "evil-corp.test",
     }
+
+
+def test_retrieve_ignores_server_dropped_description(monkeypatch):
+    # Regression: the live API accepts `description` on create and then drops
+    # it, so retrieval must never depend on it. A memory carrying a stale
+    # description but no fact prefix yields an empty case_ref, not the
+    # description's value.
+    retrieved = [
+        aiplatform_v1beta1.RetrieveMemoriesResponse.RetrievedMemory(
+            memory=aiplatform_v1beta1.Memory(
+                fact="lure with no case prefix", description="case-ignored"
+            )
+        )
+    ]
+    bank = _bank(monkeypatch, _FakeClient(retrieved=retrieved))
+
+    entry = bank.query_by_subject(scope="triage-agent", subject_key="d.test")[0]
+
+    assert entry["case_ref"] == ""
+    assert entry["content"] == "lure with no case prefix"

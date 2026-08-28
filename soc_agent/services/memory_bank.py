@@ -6,6 +6,7 @@ Bank API, with `LocalMemoryBank` (JSON file) and `FirestoreMemoryBank` as the
 no-GCP and no-Agent-Engine fallbacks.
 """
 import json
+import re
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -101,15 +102,19 @@ class VertexMemoryBank:
 
     Two shape mismatches worth naming, since this is v1beta1-only surface:
 
-    1. The Memory proto has no arbitrary-metadata field (its fields are name,
-       fact, scope, display_name, description, create_time, update_time,
-       ttl/expire_time). `case_ref` is carried in `description` because that is
-       the only free-form field that round-trips. It is not put in `scope` —
-       scope is the retrieval filter, so a unique case_ref per entry would make
-       every memory unretrievable by subject.
+    1. The Memory proto has no arbitrary-metadata field that survives a write.
+       `description` and `display_name` are accepted by create_memory and then
+       silently dropped by the server — only `fact` and `scope` come back. So
+       `case_ref` is encoded into the fact text as a "[case:<ref>] " prefix and
+       parsed back off on read. It is deliberately not put in `scope`: scope
+       matching is exact, not subset (verified against the live API), so a
+       unique case_ref per entry would make every memory unretrievable by
+       (scope, subject_key).
     2. create_memory is a long-running operation, so writes block on .result().
        Retrieval is synchronous.
     """
+
+    _CASE_REF_RE = re.compile(r"^\[case:([^\]]*)\]\s*(.*)$", re.DOTALL)
 
     def __init__(self, project: str, location: str, agent_engine_id: str):
         from google.cloud import aiplatform_v1beta1
@@ -126,8 +131,7 @@ class VertexMemoryBank:
         self, scope: str, subject_key: str, content: str, case_ref: str
     ) -> None:
         memory = self._v1beta1.Memory(
-            fact=content,
-            description=case_ref,
+            fact=f"[case:{case_ref}] {content}",
             scope={"scope": scope, "subject_key": subject_key},
         )
         self._client.create_memory(parent=self._parent, memory=memory).result()
@@ -140,18 +144,22 @@ class VertexMemoryBank:
                 simple_retrieval_params=self._v1beta1.RetrieveMemoriesRequest.SimpleRetrievalParams(),
             )
         )
-        return [
-            {
-                "scope": scope,
-                "subject_key": subject_key,
-                "content": rm.memory.fact,
-                "case_ref": rm.memory.description,
-                "created_at": rm.memory.create_time.rfc3339()
-                if rm.memory.create_time
-                else "",
-            }
-            for rm in response.retrieved_memories
-        ]
+        entries = []
+        for rm in response.retrieved_memories:
+            match = self._CASE_REF_RE.match(rm.memory.fact)
+            case_ref, content = match.groups() if match else ("", rm.memory.fact)
+            entries.append(
+                {
+                    "scope": scope,
+                    "subject_key": subject_key,
+                    "content": content,
+                    "case_ref": case_ref,
+                    "created_at": rm.memory.create_time.rfc3339()
+                    if rm.memory.create_time
+                    else "",
+                }
+            )
+        return entries
 
 
 def get_memory_bank():
