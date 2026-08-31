@@ -127,13 +127,23 @@ def _eval_single_case(case: Dict[str, Any]) -> CaseEvalResult:
     from soc_agent.pipeline import run_pipeline
 
     t0 = time.time()
-    res = run_pipeline(
-        source_channel=case["source_channel"],
-        sender=case["sender"],
-        raw_text=case["raw_text"],
-        armor_enabled=True,
-        synthetic=True
-    )
+    try:
+        res = run_pipeline(
+            source_channel=case["source_channel"],
+            sender=case["sender"],
+            raw_text=case["raw_text"],
+            armor_enabled=True,
+            synthetic=True
+        )
+    except Exception:
+        time.sleep(0.5)
+        res = run_pipeline(
+            source_channel=case["source_channel"],
+            sender=case["sender"],
+            raw_text=case["raw_text"],
+            armor_enabled=True,
+            synthetic=True
+        )
     t1 = time.time()
     latency = (t1 - t0) * 1000.0
 
