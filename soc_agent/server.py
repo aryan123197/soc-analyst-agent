@@ -126,10 +126,13 @@ def ingest(req: IngestRequest):
     )
 
 
+@app.get("/", response_class=HTMLResponse)
+@app.get("/ui", response_class=HTMLResponse)
 @app.get("/live", response_class=HTMLResponse)
 def live_dashboard():
     """Real-time SOC console — renders cases as the pipeline processes them."""
     return _DASHBOARD_HTML.read_text()
+
 
 
 @app.get("/live/stream")

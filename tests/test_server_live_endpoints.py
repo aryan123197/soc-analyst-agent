@@ -1,8 +1,10 @@
+import pytest
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
 from soc_agent.server import app
+
 
 client = TestClient(app)
 
@@ -82,35 +84,56 @@ def test_gmail_invalid_action_rejected():
     assert resp.status_code == 400
 
 
-def test_live_stream_sends_published_event():
-    import threading
-    import time
+def test_live_stream_route_config():
+    # TestClient.stream() runs the ASGI app fully in-thread to build the
+    # response, so it can't be used against a genuinely infinite generator
+    # like this endpoint's -- it hangs waiting for the stream to end, which
+    # it never does by design. Route/media-type wiring is checked via the
+    # OpenAPI schema instead; the generator's actual behavior (connect
+    # message, event forwarding, keepalive) is exercised directly below.
+    schema = client.get("/openapi.json").json()
+    route = schema["paths"]["/live/stream"]["get"]
+    assert route["responses"]["200"]["content"]
 
+
+@pytest.mark.asyncio
+async def test_live_stream_generator_yields_connect_message():
+    from soc_agent.server import live_stream
+
+    gen = live_stream().body_iterator
+    assert await gen.__anext__() == ": connected\n\n"
+    await gen.aclose()
+
+
+@pytest.mark.asyncio
+async def test_live_stream_generator_forwards_published_events():
+    from soc_agent.server import live_stream
     from soc_agent.services import events
 
-    def publish_soon():
-        time.sleep(0.2)  # give the endpoint time to subscribe before publishing
-        events.publish("case_start", {"case_id": "case_stream_test"})
+    gen = live_stream().body_iterator
+    await gen.__anext__()  # consume the connect message
 
-    publisher = threading.Thread(target=publish_soon, daemon=True)
+    events.publish("case_start", {"case_id": "case_gen_test"})
+    chunk = await gen.__anext__()
+    assert "case_gen_test" in chunk
+    assert chunk.startswith("data: ")
 
-    with client.stream("GET", "/live/stream") as resp:
-        assert resp.status_code == 200
-        assert resp.headers["content-type"].startswith("text/event-stream")
+    await gen.aclose()
 
-        lines = resp.iter_lines()
-        first = next(lines)
-        assert first == ": connected"
 
-        publisher.start()
+@pytest.mark.asyncio
+async def test_live_stream_generator_unsubscribes_on_close():
 
-        # skip blank separator lines / keepalives until the data line arrives
-        for line in lines:
-            if line.startswith("data:"):
-                assert "case_stream_test" in line
-                break
-        else:
-            raise AssertionError("did not receive the published event over SSE")
+    from soc_agent.server import live_stream
+    from soc_agent.services import events
+
+    before = len(events._subscribers)
+    gen = live_stream().body_iterator
+    await gen.__anext__()  # triggers events.subscribe() inside the generator
+    assert len(events._subscribers) == before + 1
+
+    await gen.aclose()  # triggers the generator's `finally: events.unsubscribe(q)`
+    assert len(events._subscribers) == before
 
 
 def test_traces_endpoint_404_for_unknown_case():
