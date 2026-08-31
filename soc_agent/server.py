@@ -221,12 +221,90 @@ def source_status():
 
 
 
+class HumanReviewRequest(BaseModel):
+    decision: str  # "approve" | "quarantine" | "close"
+    analyst_notes: str | None = None
+    analyst_id: str = "soc-analyst-human"
+
+
+class FileIngestRequest(BaseModel):
+    filename: str
+    content: str
+    source_channel: str = "file_upload"
+    armor_enabled: bool = True
+
+
+@app.post("/cases/{case_id}/review")
+def review_case(case_id: str, req: HumanReviewRequest):
+    case_store = store.get_case_store()
+    c = case_store.get_case(case_id)
+    if not c:
+        raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+
+    from soc_agent.agents import action
+    from soc_agent.services import gateway
+
+    tr = trace_service.get_trace_store().get_by_case_id(case_id)
+    trace_obj = trace_service.Trace(case_id=case_id)
+
+    if req.decision == "approve":
+        rec = gateway.execute_action(actor_identity=req.analyst_id, action_type="escalated")
+        case_store.update_case(case_id, {"status": "actioned", "action_taken": rec.to_dict(), "human_review": vars(req)})
+        trace_obj.log("human_triage", f"APPROVED by {req.analyst_id}: {req.analyst_notes or 'Escalation approved'}")
+        outcome_action = "escalated"
+        outcome_status = "actioned"
+    elif req.decision == "quarantine":
+        case_store.update_case(case_id, {"status": "quarantined", "human_review": vars(req)})
+        trace_obj.log("human_triage", f"QUARANTINED by {req.analyst_id}: {req.analyst_notes or 'Human override quarantine'}")
+        outcome_action = None
+        outcome_status = "quarantined"
+    elif req.decision == "close":
+        rec = gateway.execute_action(actor_identity=req.analyst_id, action_type="closed")
+        case_store.update_case(case_id, {"status": "actioned", "action_taken": rec.to_dict(), "human_review": vars(req)})
+        trace_obj.log("human_triage", f"CLOSED by {req.analyst_id}: {req.analyst_notes or 'Dismissed as false positive'}")
+        outcome_action = "closed"
+        outcome_status = "actioned"
+    else:
+        raise HTTPException(status_code=400, detail="decision must be 'approve', 'quarantine', or 'close'")
+
+    trace_service.persist_trace(trace_obj)
+    events.publish(
+        "case_complete",
+        {
+            "case_id": case_id,
+            "outcome": outcome_status,
+            "armor_verdict": c.get("model_armor_result", {}).get("verdict", "clean"),
+            "armor_threat_type": c.get("model_armor_result", {}).get("threat_type"),
+            "severity": c.get("triage", {}).get("severity", "medium"),
+            "category": c.get("triage", {}).get("category", "human-reviewed"),
+            "action_taken": outcome_action,
+            "human_reviewed": True,
+        },
+    )
+
+    return {"status": "ok", "case_id": case_id, "decision": req.decision}
+
+
+@app.post("/ingest/file", response_model=IngestResponse)
+def ingest_file(req: FileIngestRequest):
+    sender = f"upload:{req.filename}"
+    return ingest(
+        IngestRequest(
+            source_channel=req.source_channel,
+            sender=sender,
+            raw_text=req.content,
+            armor_enabled=req.armor_enabled,
+        )
+    )
+
+
 @app.get("/traces/{case_id}")
 def get_trace(case_id: str):
     trace_data = trace_service.get_trace_store().get_by_case_id(case_id)
     if trace_data is None:
         raise HTTPException(status_code=404, detail=f"no trace found for case_id={case_id}")
     return trace_data
+
 
 
 @app.get("/traces", response_class=HTMLResponse)

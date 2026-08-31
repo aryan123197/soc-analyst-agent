@@ -146,3 +146,28 @@ def test_traces_list_view_renders_html():
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
     assert "Reasoning Traces" in resp.text
+
+
+def test_file_ingest_endpoint():
+    resp = client.post(
+        "/ingest/file",
+        json={
+            "filename": "security_report.log",
+            "content": "Alert: high memory usage on server web-01",
+            "source_channel": "file_upload",
+            "armor_enabled": False,
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "case_id" in data
+    assert data["status"] in ("actioned", "quarantined")
+
+
+def test_human_review_unknown_case_returns_404():
+    resp = client.post(
+        "/cases/case_nonexistent_999/review",
+        json={"decision": "approve", "analyst_notes": "Looks good"},
+    )
+    assert resp.status_code == 404
+
