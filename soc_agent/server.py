@@ -132,6 +132,12 @@ def ingest(req: IngestRequest):
     )
 
 
+@app.get("/favicon.ico")
+def favicon():
+    svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%2338bdf8' d='M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4z'/></svg>"
+    return Response(content=svg, media_type="image/svg+xml")
+
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/ui", response_class=HTMLResponse)
 @app.get("/live", response_class=HTMLResponse)
@@ -139,6 +145,7 @@ def ingest(req: IngestRequest):
 def live_dashboard():
     """Real-time SOC console and Admin Observability / Evals Dashboard."""
     return _DASHBOARD_HTML.read_text()
+
 
 
 # -----------------------------------------------------------------------------
