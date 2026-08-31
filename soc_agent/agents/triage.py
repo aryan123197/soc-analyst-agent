@@ -39,6 +39,7 @@ class TriageResult:
     category: str
     reasoning: str
     similar_past_cases: list[str]
+    llm_used: bool = True
 
 
 def _sender_domain(sender: str) -> str:
@@ -58,6 +59,16 @@ def _fallback_classify(content: str) -> tuple[str, str, str]:
     return "low", "informational", "Fallback heuristic: no elevated-risk keywords found."
 
 
+def _strip_fences(text: str) -> str:
+    """Gemini wraps JSON in ```json fences often enough that a bare json.loads
+    silently demotes real LLM triage to the keyword fallback. Strip them."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    return text.strip()
+
+
 def _classify_with_llm(sender: str, channel: str, content: str, memory_context: str) -> tuple[str, str, str]:
     client = genai.Client(
         vertexai=True, project=config.GOOGLE_CLOUD_PROJECT, location=config.GEMINI_LOCATION
@@ -66,7 +77,7 @@ def _classify_with_llm(sender: str, channel: str, content: str, memory_context: 
         sender=sender, channel=channel, content=content, memory_context=memory_context
     )
     response = client.models.generate_content(model=config.GEMINI_MODEL, contents=prompt)
-    parsed = json.loads(response.text.strip())
+    parsed = json.loads(_strip_fences(response.text))
     severity = parsed["severity"] if parsed["severity"] in SEVERITIES else "medium"
     return severity, parsed["category"], parsed["reasoning"]
 
@@ -86,13 +97,17 @@ def triage(
     )
     tr.log("triage", f"queried Memory Bank for subject_key={domain}, found {len(memories)} entries")
 
+    llm_used = True
     if config.GOOGLE_CLOUD_PROJECT or _has_api_key():
         try:
             severity, category, reasoning = _classify_with_llm(sender, channel, screened_content, memory_context)
         except Exception as exc:  # network/API issues shouldn't crash the demo
-            tr.log("triage", f"LLM classify failed ({exc}), falling back to heuristic")
+            llm_used = False
+            tr.log("triage", f"DEGRADED: LLM classify failed ({exc}), falling back to heuristic")
             severity, category, reasoning = _fallback_classify(screened_content)
     else:
+        llm_used = False
+        tr.log("triage", "DEGRADED: no LLM configured, using keyword heuristic")
         severity, category, reasoning = _fallback_classify(screened_content)
 
     similar_case_ids = [m["case_ref"] for m in memories]
@@ -107,13 +122,18 @@ def triage(
                 "category": category,
                 "similar_past_cases": similar_case_ids,
                 "reasoning_trace_id": tr.trace_id,
+                "llm_used": llm_used,
             },
         },
     )
     tr.log("triage", f"classified severity={severity} category={category}: {reasoning}")
 
     return TriageResult(
-        severity=severity, category=category, reasoning=reasoning, similar_past_cases=similar_case_ids
+        severity=severity,
+        category=category,
+        reasoning=reasoning,
+        similar_past_cases=similar_case_ids,
+        llm_used=llm_used,
     )
 
 

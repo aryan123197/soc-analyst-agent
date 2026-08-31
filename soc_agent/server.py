@@ -47,6 +47,9 @@ class TriageView(BaseModel):
     category: str
     reasoning: str
     similar_past_cases: list[str]
+    # False means the Gemini call failed or was unconfigured and severity came
+    # from the keyword fallback -- surfaced so degraded triage can't pass as real.
+    llm_used: bool
 
 
 class ActionView(BaseModel):

@@ -112,6 +112,7 @@ class ReplaySource:
                     source_channel=item["source_channel"],
                     sender=item["sender"],
                     raw_text=item["raw_text"],
+                    synthetic=True,
                 )
             except Exception as exc:  # keep the stream alive through transient API errors
                 print(f"[replay] pipeline error: {exc!r}", flush=True)

@@ -18,9 +18,16 @@ class IngestedItem:
     raw_text: str
 
 
-def ingest(source_channel: str, sender: str, raw_text: str) -> tuple[IngestedItem, trace.Trace]:
+def ingest(
+    source_channel: str, sender: str, raw_text: str, synthetic: bool = False
+) -> tuple[IngestedItem, trace.Trace]:
     raw_ref = raw_content.store_raw_content(raw_text)
-    case = store.make_case(source_channel=source_channel, sender=sender, raw_content_ref=raw_ref)
+    case = store.make_case(
+        source_channel=source_channel,
+        sender=sender,
+        raw_content_ref=raw_ref,
+        synthetic=synthetic,
+    )
 
     case_store = store.get_case_store()
     case_store.create_case(case)
