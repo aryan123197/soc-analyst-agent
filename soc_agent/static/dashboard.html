@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOC Analyst Agent — Live Console</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #131a23;
+    --panel-2: #1a232e;
+    --line: #263241;
+    --text: #e6edf3;
+    --muted: #8b9bb0;
+    --green: #3fb950;
+    --amber: #d29922;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+    padding: 0.9rem 1.25rem;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { font-size: 15px; margin: 0; letter-spacing: 0.02em; font-weight: 600; }
+  .status { display: flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--green); box-shadow: 0 0 0 0 rgba(63,185,80,.7); animation: pulse 2s infinite; }
+  .dot.off { background: var(--red); }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(63,185,80,.6); }
+    70% { box-shadow: 0 0 0 7px rgba(63,185,80,0); }
+    100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
+  }
+  .stats { display: flex; gap: 1.5rem; margin-left: auto; }
+  .stat { text-align: right; }
+  .stat .n { font-size: 20px; font-weight: 700; line-height: 1.1; }
+  .stat .l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .n.blocked { color: var(--red); }
+  .n.escalated { color: var(--amber); }
+  .n.clean { color: var(--green); }
+  button {
+    font: inherit; font-size: 12px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 0.4rem 0.8rem; cursor: pointer;
+  }
+  button:hover { border-color: var(--blue); color: var(--blue); }
+  main { padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; max-width: 1100px; }
+  .empty { color: var(--muted); padding: 2rem 0; }
+
+  .case {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--muted);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    animation: slidein .35s ease-out;
+  }
+  @keyframes slidein { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+  .case.quarantined { border-left-color: var(--red); }
+  .case.escalated { border-left-color: var(--amber); }
+  .case.notified { border-left-color: var(--blue); }
+  .case.closed { border-left-color: var(--green); }
+
+  .case-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .chan {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 6px; color: var(--muted);
+  }
+  .sender { font-weight: 600; }
+  .cid { color: var(--muted); font-size: 11px; margin-left: auto; }
+  .preview {
+    color: var(--muted); margin: 0.5rem 0 0.7rem;
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 3.6em; overflow: hidden;
+  }
+
+  .pipeline { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+  .stage {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+    padding: 3px 9px; border-radius: 4px;
+    background: var(--panel-2); color: #3d4a5c; border: 1px solid var(--line);
+    transition: all .25s ease;
+  }
+  .stage.done { color: var(--text); border-color: var(--blue); background: rgba(88,166,255,.12); }
+  .stage.blocked { color: var(--red); border-color: var(--red); background: rgba(248,81,73,.14); }
+  .stage.skipped { opacity: .35; text-decoration: line-through; }
+  .arrow { color: #2d3a4a; padding: 0 6px; font-size: 11px; }
+
+  .verdict {
+    margin-left: auto; font-size: 11px; font-weight: 700;
+    letter-spacing: .06em; padding: 3px 10px; border-radius: 4px;
+  }
+  .verdict.quarantined { background: rgba(248,81,73,.18); color: var(--red); }
+  .verdict.escalated { background: rgba(210,153,34,.18); color: var(--amber); }
+  .verdict.notified { background: rgba(88,166,255,.18); color: var(--blue); }
+  .verdict.closed { background: rgba(63,185,80,.18); color: var(--green); }
+
+  .hops { margin-top: 0.7rem; border-top: 1px solid var(--line); padding-top: 0.55rem; display: none; }
+  .case.open .hops { display: block; }
+  .hop { display: flex; gap: 0.7rem; font-size: 12px; padding: 2px 0; }
+  .hop .t { color: #4d5b6d; flex-shrink: 0; }
+  .hop .h { color: var(--purple); flex-shrink: 0; width: 96px; }
+  .hop .d { color: var(--muted); word-break: break-word; }
+  .toggle { font-size: 11px; color: var(--muted); cursor: pointer; margin-top: 0.5rem; display: inline-block; }
+  .toggle:hover { color: var(--blue); }
+</style>
+</head>
+<body>
+<header>
+  <h1>SOC ANALYST AGENT — LIVE CONSOLE</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="conn">connecting…</span></div>
+  <button id="gmail" data-src="gmail" data-label="inbox watch">Start inbox watch</button>
+  <button id="replay" data-src="replay" data-label="replay feed">Start replay feed</button>
+  <div class="stats">
+    <div class="stat"><div class="n" id="s-total">0</div><div class="l">Ingested</div></div>
+    <div class="stat"><div class="n blocked" id="s-blocked">0</div><div class="l">Quarantined</div></div>
+    <div class="stat"><div class="n escalated" id="s-esc">0</div><div class="l">Escalated</div></div>
+    <div class="stat"><div class="n clean" id="s-clean">0</div><div class="l">Cleared</div></div>
+  </div>
+</header>
+<main>
+  <div class="empty" id="empty">Waiting for events. Start the replay feed, email the monitored inbox, or POST to /ingest.</div>
+</main>
+
+<script>
+const STAGES = ["ingestion", "model_armor", "triage", "action"];
+const LABELS = { ingestion: "ingest", model_armor: "model armor", triage: "triage", action: "action" };
+const cases = new Map();
+const stats = { total: 0, blocked: 0, esc: 0, clean: 0 };
+const main = document.querySelector("main");
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function bumpStats() {
+  document.getElementById("s-total").textContent = stats.total;
+  document.getElementById("s-blocked").textContent = stats.blocked;
+  document.getElementById("s-esc").textContent = stats.esc;
+  document.getElementById("s-clean").textContent = stats.clean;
+}
+
+function ensureCase(id) {
+  if (cases.has(id)) return cases.get(id);
+  document.getElementById("empty")?.remove();
+
+  const el = document.createElement("div");
+  el.className = "case";
+  el.innerHTML = `
+    <div class="case-head">
+      <span class="chan"></span><span class="sender">…</span><span class="cid">${esc(id)}</span>
+    </div>
+    <div class="preview"></div>
+    <div class="pipeline">
+      ${STAGES.map((s, i) => (i ? '<span class="arrow">→</span>' : "") + `<span class="stage" data-stage="${s}">${LABELS[s]}</span>`).join("")}
+      <span class="verdict"></span>
+    </div>
+    <span class="toggle">▸ reasoning trace</span>
+    <div class="hops"></div>`;
+
+  el.querySelector(".toggle").addEventListener("click", () => {
+    el.classList.toggle("open");
+    el.querySelector(".toggle").textContent =
+      (el.classList.contains("open") ? "▾" : "▸") + " reasoning trace";
+  });
+
+  main.prepend(el);
+  const rec = { el, done: new Set() };
+  cases.set(id, rec);
+
+  stats.total++;
+  bumpStats();
+  while (main.children.length > 60) main.lastElementChild.remove();
+  return rec;
+}
+
+function onStart(ev) {
+  const rec = ensureCase(ev.case_id);
+  rec.el.querySelector(".chan").textContent = ev.source_channel || "";
+  rec.el.querySelector(".sender").textContent = ev.sender || "";
+  rec.el.querySelector(".preview").textContent = ev.preview || "";
+}
+
+function onHop(ev) {
+  const rec = ensureCase(ev.case_id);
+  const row = document.createElement("div");
+  row.className = "hop";
+  row.innerHTML =
+    `<span class="t">${esc((ev.timestamp || "").slice(11, 19))}</span>` +
+    `<span class="h">${esc(ev.hop)}</span><span class="d">${esc(ev.detail)}</span>`;
+  rec.el.querySelector(".hops").appendChild(row);
+
+  const stage = rec.el.querySelector(`.stage[data-stage="${ev.hop}"]`);
+  if (stage && !rec.done.has(ev.hop)) {
+    rec.done.add(ev.hop);
+    const isBlock = ev.hop === "model_armor" && /verdict=blocked/.test(ev.detail || "");
+    stage.classList.add(isBlock ? "blocked" : "done");
+  }
+}
+
+function onComplete(ev) {
+  const rec = ensureCase(ev.case_id);
+  const quarantined = ev.outcome === "quarantined";
+  const verdict = quarantined ? "quarantined" : (ev.action_taken || "closed");
+
+  if (quarantined) {
+    stats.blocked++;
+    rec.el.querySelectorAll('.stage[data-stage="triage"], .stage[data-stage="action"]')
+      .forEach(s => { if (!rec.done.has(s.dataset.stage)) s.classList.add("skipped"); });
+    rec.el.querySelector('.stage[data-stage="action"]').classList.remove("skipped");
+  } else if (verdict === "escalated") {
+    stats.esc++;
+  } else {
+    stats.clean++;
+  }
+  bumpStats();
+
+  rec.el.classList.add(verdict);
+  const v = rec.el.querySelector(".verdict");
+  v.className = "verdict " + verdict;
+  v.textContent = quarantined
+    ? `QUARANTINED · ${(ev.armor_threat_type || "threat").toUpperCase()}`
+    : `${verdict.toUpperCase()} · ${(ev.severity || "").toUpperCase()}`;
+}
+
+const HANDLERS = { case_start: onStart, hop: onHop, case_complete: onComplete };
+
+function connect() {
+  const src = new EventSource("/live/stream");
+  src.onopen = () => {
+    document.getElementById("dot").className = "dot on";
+    document.getElementById("conn").textContent = "live";
+  };
+  src.onerror = () => {
+    document.getElementById("dot").className = "dot off";
+    document.getElementById("conn").textContent = "reconnecting…";
+  };
+  src.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+    HANDLERS[ev.type]?.(ev);
+  };
+}
+connect();
+
+const running = { gmail: false, replay: false };
+
+function paint(src) {
+  const btn = document.querySelector(`button[data-src="${src}"]`);
+  btn.textContent = (running[src] ? "Stop " : "Start ") + btn.dataset.label;
+  btn.style.borderColor = running[src] ? "var(--green)" : "";
+  btn.style.color = running[src] ? "var(--green)" : "";
+}
+
+for (const btn of document.querySelectorAll("button[data-src]")) {
+  btn.addEventListener("click", async () => {
+    const src = btn.dataset.src;
+    const want = !running[src];
+    const res = await fetch(`/live/${src}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: want ? "start" : "stop" }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || `Could not ${want ? "start" : "stop"} ${btn.dataset.label}.`);
+      return;
+    }
+    running[src] = (await res.json()).running;
+    paint(src);
+  });
+}
+
+fetch("/live/sources").then(r => r.json()).then(s => {
+  for (const src of ["gmail", "replay"]) {
+    running[src] = s[src].running;
+    paint(src);
+  }
+});
+</script>
+</body>
+</html>
