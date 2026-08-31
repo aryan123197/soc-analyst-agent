@@ -392,6 +392,22 @@
   }
   .memory-callout-detail { color: var(--text-primary); line-height: 1.4; word-break: break-word; }
 
+  /* C2 URL Threat Intel Callout Badge */
+  .c2-callout-box {
+    margin-top: 0.55rem; margin-bottom: 0.35rem;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 6px; padding: 0.55rem 0.75rem;
+    display: flex; flex-direction: column; gap: 0.3rem;
+    font-family: var(--font-mono); font-size: 11px;
+    animation: fadeIn 0.3s ease-out;
+  }
+  .c2-callout-title {
+    color: var(--accent-red); font-weight: 800; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .c2-callout-detail { color: var(--text-primary); line-height: 1.4; word-break: break-word; }
+
   /* Demo Automation Action Bar */
   .demo-actions-bar {
     display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.85rem;
@@ -1015,8 +1031,13 @@ function getOrCreateCaseCard(caseId) {
       </div>
     </div>
 
-    <div class="trace-toggle" onclick="toggleTraceDrawer('${escapeHtml(caseId)}')">
-      <span>▸ Reasoning Telemetry & Memory Bank Recall</span>
+    <div style="display:flex; align-items:center; justify-space-between; margin-top:0.75rem;">
+      <div class="trace-toggle" onclick="toggleTraceDrawer('${escapeHtml(caseId)}')">
+        <span>▸ Reasoning Telemetry & Memory Bank Recall</span>
+      </div>
+      <button class="btn btn-secondary" style="font-size:11px; padding:0.2rem 0.55rem; border-color:var(--border-color);" onclick="downloadTelemetryReport('${escapeHtml(caseId)}')">
+        📥 Export Report (JSON)
+      </button>
     </div>
     <div class="trace-drawer" id="drawer-${escapeHtml(caseId)}"></div>
   `;
@@ -1029,6 +1050,34 @@ function getOrCreateCaseCard(caseId) {
   updateStatsUI();
   while (container.children.length > 50) container.lastElementChild.remove();
   return rec;
+}
+
+async function downloadTelemetryReport(caseId) {
+  try {
+    const res = await fetch(`/traces/${caseId}`);
+    let data;
+    if (res.ok) {
+      data = await res.json();
+    } else {
+      data = {
+        case_id: caseId,
+        exported_at: new Date().toISOString(),
+        status: "quarantined_or_processed",
+        note: "Incident telemetry trace exported from SOC Analyst Agent Command Center"
+      };
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `soc_case_${caseId}_telemetry.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert("Failed to export telemetry report: " + err);
+  }
 }
 
 async function reviewCase(caseId, decision) {
@@ -1109,6 +1158,22 @@ function handleCaseComplete(ev) {
     stats.blocked++;
     rec.el.querySelectorAll('.hop-badge[data-stage="triage"], .hop-badge[data-stage="action"]')
       .forEach(b => { if (!rec.doneHops.has(b.dataset.stage)) b.classList.add("skipped"); });
+
+    // Render C2 URL Threat Intel Callout Box if threat is malicious_uri or C2 link
+    if (/malicious_uri|phish|c2/i.test(ev.armor_threat_type || "")) {
+      const drawer = rec.el.querySelector(".trace-drawer");
+      if (drawer && !drawer.querySelector(".c2-callout-box")) {
+        const c2Box = document.createElement("div");
+        c2Box.className = "c2-callout-box";
+        c2Box.innerHTML = `
+          <div class="c2-callout-title">
+            <span>🌐 C2 THREAT INTEL ALERT: MALICIOUS PHISHING URI DETECTED</span>
+          </div>
+          <div class="c2-callout-detail">Google Safe Browsing & Model Armor flagged command & control phishing URL embedded in input payload. Auto-quarantined at edge.</div>
+        `;
+        drawer.appendChild(c2Box);
+      }
+    }
   } else if (outcomeClass === "escalated") {
     stats.esc++;
     // Show Human in the loop review box for escalated high/critical cases

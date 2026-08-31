@@ -114,6 +114,7 @@ class ArmorResult:
             "threat_type": self.threat_type,
             "confidence": self.confidence,
             "screened_at": self.screened_at,
+            "matched_signal": self.matched_signal,
         }
 
 
