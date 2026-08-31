@@ -202,10 +202,21 @@ def control_gmail(req: GmailRequest):
 @app.get("/live/sources")
 def source_status():
     g, r = gmail.get_source(), replay.get_source()
+    gmail_configured = bool(
+        os.environ.get("GMAIL_CLIENT_ID")
+        and os.environ.get("GMAIL_CLIENT_SECRET")
+        and os.environ.get("GMAIL_REFRESH_TOKEN")
+    )
     return {
-        "gmail": {"running": g.running, "interval": g.interval, "last_error": g.last_error},
+        "gmail": {
+            "running": g.running,
+            "interval": g.interval,
+            "last_error": g.last_error,
+            "configured": gmail_configured,
+        },
         "replay": {"running": r.running, "interval": r.interval},
     }
+
 
 
 @app.get("/traces/{case_id}")
