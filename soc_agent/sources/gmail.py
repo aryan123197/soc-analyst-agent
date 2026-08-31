@@ -57,22 +57,32 @@ def _header(payload: dict, name: str) -> str:
     return ""
 
 
-def _extract_body(payload: dict) -> str:
-    """Depth-first walk for the first text/plain part, falling back to text/html."""
-    mime = payload.get("mimeType", "")
-    data = payload.get("body", {}).get("data")
+def _decode(data: str) -> str:
+    return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
 
-    if data and mime == "text/plain":
-        return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
+
+def _find_part(payload: dict, mime_type: str) -> Optional[str]:
+    """Depth-first search for the first part of exactly `mime_type`."""
+    if payload.get("mimeType") == mime_type:
+        data = payload.get("body", {}).get("data")
+        if data:
+            return _decode(data)
 
     for part in payload.get("parts", []) or []:
-        found = _extract_body(part)
+        found = _find_part(part, mime_type)
         if found:
             return found
+    return None
 
-    if data and mime == "text/html":
-        return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
-    return ""
+
+def _extract_body(payload: dict) -> str:
+    """Prefers text/plain anywhere in the MIME tree; falls back to text/html.
+
+    A single traversal can't do this correctly -- multipart/alternative parts
+    are siblings, and whichever one happens to appear first in `parts` is not
+    necessarily text/plain. This does two passes instead of assuming ordering.
+    """
+    return _find_part(payload, "text/plain") or _find_part(payload, "text/html") or ""
 
 
 class GmailSource:

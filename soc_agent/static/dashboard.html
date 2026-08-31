@@ -107,6 +107,12 @@
   .verdict.escalated { background: rgba(210,153,34,.18); color: var(--amber); }
   .verdict.notified { background: rgba(88,166,255,.18); color: var(--blue); }
   .verdict.closed { background: rgba(63,185,80,.18); color: var(--green); }
+  .degraded {
+    font-size: 10px; font-weight: 700; letter-spacing: .06em;
+    padding: 3px 8px; border-radius: 4px; margin-left: 0.5rem;
+    background: rgba(210,153,34,.15); color: var(--amber);
+    border: 1px dashed var(--amber);
+  }
 
   .hops { margin-top: 0.7rem; border-top: 1px solid var(--line); padding-top: 0.55rem; display: none; }
   .case.open .hops { display: block; }
@@ -166,6 +172,7 @@ function ensureCase(id) {
     <div class="preview"></div>
     <div class="pipeline">
       ${STAGES.map((s, i) => (i ? '<span class="arrow">→</span>' : "") + `<span class="stage" data-stage="${s}">${LABELS[s]}</span>`).join("")}
+      <span class="degraded" hidden>HEURISTIC FALLBACK</span>
       <span class="verdict"></span>
     </div>
     <span class="toggle">▸ reasoning trace</span>
@@ -227,6 +234,10 @@ function onComplete(ev) {
     stats.clean++;
   }
   bumpStats();
+
+  // Degraded triage means severity came from the keyword fallback, not Gemini.
+  // Never let that pass as real LLM reasoning on screen.
+  rec.el.querySelector(".degraded").hidden = !ev.degraded;
 
   rec.el.classList.add(verdict);
   const v = rec.el.querySelector(".verdict");

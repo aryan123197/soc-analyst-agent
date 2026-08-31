@@ -3,6 +3,8 @@ google-genai==2.20.0
 google-cloud-firestore==2.29.0
 google-cloud-modelarmor==0.7.1
 google-cloud-aiplatform==1.165.1
+google-api-python-client==2.199.0
+google-auth-oauthlib==1.4.1
 python-dotenv==1.2.3
 pytest==9.1.1
 fastapi==0.141.1

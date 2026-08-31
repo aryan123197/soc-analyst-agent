@@ -95,10 +95,14 @@ def make_case(
     source_channel: str,
     sender: str,
     raw_content_ref: str,
+    synthetic: bool = False,
 ) -> dict[str, Any]:
     return {
         "case_id": new_case_id(),
         "status": "ingested",
+        # Marks demo-generator traffic (soc_agent/sources/replay.py) so it can be
+        # told apart from real cases and bulk-deleted after a demo run.
+        "synthetic": synthetic,
         "source": {
             "channel": source_channel,
             "sender": sender,

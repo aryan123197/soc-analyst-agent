@@ -37,8 +37,15 @@ def run_pipeline(
     sender: str,
     raw_text: str,
     armor_enabled: bool = True,
+    synthetic: bool = False,
 ) -> PipelineResult:
-    item, tr = ingestion.ingest(source_channel=source_channel, sender=sender, raw_text=raw_text)
+    """`synthetic=True` marks demo-generator traffic: the case is tagged in the
+    store and no Memory Bank entry is written, so a long-running replay feed
+    cannot pollute the recall corpus the real demo depends on (and doesn't pay
+    for a synchronous embedding LRO per item)."""
+    item, tr = ingestion.ingest(
+        source_channel=source_channel, sender=sender, raw_text=raw_text, synthetic=synthetic
+    )
 
     armor = model_armor.get_model_armor(
         enabled=armor_enabled,
@@ -93,15 +100,18 @@ def run_pipeline(
 
     action_record = action.act(case_id=item.case_id, severity=triage_result.severity, tr=tr)
 
-    triage.write_memory_summary(
-        sender=sender,
-        case_id=item.case_id,
-        summary=(
-            f"{source_channel} from {sender} classified {triage_result.severity}/"
-            f"{triage_result.category}: {triage_result.reasoning}"
-        ),
-    )
-    tr.log("memory_bank", f"wrote summary for sender domain of {sender}")
+    if synthetic:
+        tr.log("memory_bank", "skipped write (synthetic demo traffic)")
+    else:
+        triage.write_memory_summary(
+            sender=sender,
+            case_id=item.case_id,
+            summary=(
+                f"{source_channel} from {sender} classified {triage_result.severity}/"
+                f"{triage_result.category}: {triage_result.reasoning}"
+            ),
+        )
+        tr.log("memory_bank", f"wrote summary for sender domain of {sender}")
     trace.persist_trace(tr)
     events.publish(
         "case_complete",
@@ -113,6 +123,7 @@ def run_pipeline(
             "severity": triage_result.severity,
             "category": triage_result.category,
             "action_taken": action_record.type,
+            "degraded": not triage_result.llm_used,
         },
     )
 
