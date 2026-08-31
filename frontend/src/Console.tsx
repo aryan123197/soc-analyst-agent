@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchCorpus, postIngest } from "./api";
+import { encodeRedTeam, fetchCorpus, postIngest } from "./api";
 import { Stages, TraceSteps } from "./Stages";
 import type { CorpusCase, IngestResult } from "./types";
 
@@ -23,9 +23,6 @@ export function Console() {
   const [runs, setRuns] = useState<Run[]>([]);
   const seq = useRef(0);
 
-  // Presets always come from the backend. There is no bundled copy to fall back
-  // on: a preset that does not match what the pipeline was tested against would
-  // quietly make the demo meaningless.
   useEffect(() => {
     const ac = new AbortController();
     fetchCorpus(ac.signal)
@@ -37,13 +34,22 @@ export function Console() {
         if (!ac.signal.aborted) setCorpusError(String(e));
       });
     return () => ac.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function load(c: CorpusCase) {
     setChannel(c.source_channel);
     setSender(c.sender);
     setRawText(c.raw_text);
+  }
+
+  async function handleMutate(type: string) {
+    if (!rawText.trim()) return;
+    try {
+      const res = await encodeRedTeam(rawText, type);
+      setRawText(res.mutated_payload);
+    } catch (e: unknown) {
+      setError("Mutation error: " + String(e));
+    }
   }
 
   async function run() {
@@ -124,10 +130,19 @@ export function Console() {
           </div>
           <label className="field" htmlFor="rt">raw_text</label>
           <textarea id="rt" value={rawText} onChange={(e) => setRawText(e.target.value)} />
+
+          <div style={{ display: "flex", gap: 6, margin: "8px 0" }}>
+            <button style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => handleMutate("base64")}>📦 Base64</button>
+            <button style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => handleMutate("hex")}>🔢 Hex</button>
+            <button style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => handleMutate("url")}>🌐 URL</button>
+            <button style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => handleMutate("wrapped_ticket")}>🎟️ Ticket</button>
+          </div>
+
           <button className="run" onClick={run} disabled={running || !rawText.trim()}>
             {running ? "RUNNING…" : "RUN PIPELINE"}
           </button>
         </div>
+
 
         <div className="panel">
           <div className="row" style={{ marginBottom: 10 }}>

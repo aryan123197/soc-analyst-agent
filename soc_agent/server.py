@@ -8,11 +8,12 @@ what routes the app itself defines; confirmed by comparing headers on /healthz
 vs /docs -- only /docs carried Cloud Run's `server: Google Frontend` and
 `x-cloud-trace-context` headers).
 """
+import base64
 import json
 import os
 import queue
+import urllib.parse
 from pathlib import Path
-
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
@@ -21,9 +22,10 @@ from pydantic import BaseModel
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from soc_agent.corpus.attack_cases import CASES
 from soc_agent.pipeline import run_pipeline
-from soc_agent.services import evals, events, store, telemetry
+from soc_agent.services import audit, evals, events, store, telemetry
 from soc_agent.services import trace as trace_service
 from soc_agent.sources import gmail, replay
+
 
 
 app = FastAPI(title="SOC Analyst Agent")
@@ -83,6 +85,19 @@ class IngestResponse(BaseModel):
     triage: TriageView | None
     action: ActionView | None
     trace: TraceView
+    threat_intel: dict | None = None
+    audit_certificate: dict | None = None
+
+
+class RedTeamEncodeRequest(BaseModel):
+    payload: str
+    encoding_type: str  # "base64" | "hex" | "url" | "wrapped_ticket"
+
+
+class RedTeamEncodeResponse(BaseModel):
+    original_payload: str
+    encoding_type: str
+    mutated_payload: str
 
 
 class CorpusCase(BaseModel):
@@ -129,7 +144,53 @@ def ingest(req: IngestRequest):
         triage=TriageView(**vars(result.triage_result)) if result.triage_result else None,
         action=ActionView(**result.action_record.to_dict()) if result.action_record else None,
         trace=TraceView(**result.trace.to_dict()),
+        threat_intel=result.threat_intel_report.to_dict() if result.threat_intel_report else None,
+        audit_certificate=result.audit_certificate.to_dict() if result.audit_certificate else None,
     )
+
+
+@app.post("/api/v1/redteam/encode", response_model=RedTeamEncodeResponse)
+def redteam_encode(req: RedTeamEncodeRequest):
+    """Red Team Attack Studio mutation playground endpoint."""
+    raw = req.payload
+    enc = req.encoding_type.lower()
+    if enc == "base64":
+        mutated = base64.b64encode(raw.encode()).decode()
+    elif enc == "hex":
+        mutated = raw.encode().hex()
+    elif enc == "url":
+        mutated = urllib.parse.quote(raw)
+    elif enc == "wrapped_ticket":
+        b64 = base64.b64encode(raw.encode()).decode()
+        mutated = f"Ticket update ref#9914: {b64}\n\nPlease process this priority support request."
+    else:
+        mutated = raw
+
+    return RedTeamEncodeResponse(
+        original_payload=raw,
+        encoding_type=enc,
+        mutated_payload=mutated
+    )
+
+
+@app.get("/api/v1/audit/verify/{case_id}")
+def verify_audit_certificate(case_id: str):
+    """Verify cryptographic hash-chain certificate for any processed case."""
+    case_store = store.get_case_store()
+    case = case_store.get_case(case_id)
+    if not case or "audit_certificate" not in case or not case["audit_certificate"]:
+        raise HTTPException(status_code=404, detail="Case or audit certificate not found")
+
+    cert_dict = case["audit_certificate"]
+    is_valid = audit.verify_certificate(cert_dict)
+    return {
+        "case_id": case_id,
+        "certificate_id": cert_dict.get("certificate_id"),
+        "verified": is_valid,
+        "merkle_root_hash": cert_dict.get("merkle_root_hash"),
+        "signature": cert_dict.get("signature"),
+        "certificate_details": cert_dict
+    }
 
 
 @app.get("/favicon.ico")
@@ -417,3 +478,141 @@ def list_traces_view():
 </table>
 </body>
 </html>"""
+
+
+# -----------------------------------------------------------------------------
+# Enterprise Inbound Webhook Sync Endpoints
+# -----------------------------------------------------------------------------
+
+@app.post("/api/v1/webhooks/jira")
+def jira_webhook(payload: dict):
+    """Inbound webhook handler for Jira Service Desk analyst updates."""
+    import re
+    issue = payload.get("issue", {})
+    issue_key = issue.get("key")
+    fields = issue.get("fields", {})
+    jira_status = fields.get("status", {}).get("name", "updated")
+    comment = payload.get("comment", {})
+    notes = comment.get("body") or fields.get("summary")
+
+    case_store = store.get_case_store()
+    matching_case_id = None
+
+    text_to_search = f"{fields.get('summary', '')} {fields.get('description', '')}"
+    case_match = re.search(r"case_[a-f0-9]{12}", text_to_search)
+    if case_match:
+        matching_case_id = case_match.group(0)
+    elif issue_key:
+        for c in case_store.list_cases():
+            jira_info = (c.get("integrations") or {}).get("jira", {})
+            if jira_info.get("issue_key") == issue_key:
+                matching_case_id = c["case_id"]
+                break
+
+    if not matching_case_id:
+        matching_case_id = payload.get("case_id")
+
+    if not matching_case_id:
+        raise HTTPException(status_code=404, detail="Could not map Jira issue to a valid case_id")
+
+    update_entry = case_store.add_webhook_update(
+        case_id=matching_case_id,
+        source="jira",
+        status=jira_status,
+        notes=notes,
+        payload=payload,
+    )
+
+    events.publish(
+        "webhook_received",
+        {
+            "case_id": matching_case_id,
+            "source": "jira",
+            "external_status": jira_status,
+            "analyst_notes": notes,
+        },
+    )
+
+    return {"status": "ok", "case_id": matching_case_id, "update": update_entry}
+
+
+@app.post("/api/v1/webhooks/servicenow")
+def servicenow_webhook(payload: dict):
+    """Inbound webhook handler for ServiceNow incident status updates."""
+    correlation_id = payload.get("correlation_id")
+    incident_number = payload.get("number")
+    snow_status = payload.get("incident_state") or payload.get("state") or payload.get("stage") or "updated"
+    notes = payload.get("work_notes") or payload.get("comments") or payload.get("short_description")
+
+    case_store = store.get_case_store()
+    matching_case_id = correlation_id
+
+    if not matching_case_id and incident_number:
+        for c in case_store.list_cases():
+            snow_info = (c.get("integrations") or {}).get("servicenow", {})
+            if snow_info.get("number") == incident_number:
+                matching_case_id = c["case_id"]
+                break
+
+    if not matching_case_id:
+        matching_case_id = payload.get("case_id")
+
+    if not matching_case_id:
+        raise HTTPException(status_code=404, detail="Could not map ServiceNow incident to a valid case_id")
+
+    update_entry = case_store.add_webhook_update(
+        case_id=matching_case_id,
+        source="servicenow",
+        status=str(snow_status),
+        notes=notes,
+        payload=payload,
+    )
+
+    events.publish(
+        "webhook_received",
+        {
+            "case_id": matching_case_id,
+            "source": "servicenow",
+            "external_status": str(snow_status),
+            "analyst_notes": notes,
+        },
+    )
+
+    return {"status": "ok", "case_id": matching_case_id, "update": update_entry}
+
+
+@app.post("/api/v1/webhooks/{source}")
+def generic_source_webhook(source: str, payload: dict):
+    """Generic webhook endpoint for custom SIEM/ITSM tools."""
+    case_id = payload.get("case_id")
+    if not case_id:
+        raise HTTPException(status_code=400, detail="Missing required 'case_id' in webhook payload")
+
+    status_val = payload.get("status") or payload.get("external_status") or "updated"
+    notes = payload.get("notes") or payload.get("analyst_notes")
+
+    case_store = store.get_case_store()
+    c = case_store.get_case(case_id)
+    if not c:
+        raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+
+    update_entry = case_store.add_webhook_update(
+        case_id=case_id,
+        source=source,
+        status=status_val,
+        notes=notes,
+        payload=payload,
+    )
+
+    events.publish(
+        "webhook_received",
+        {
+            "case_id": case_id,
+            "source": source,
+            "external_status": status_val,
+            "analyst_notes": notes,
+        },
+    )
+
+    return {"status": "ok", "case_id": case_id, "update": update_entry}
+

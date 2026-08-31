@@ -31,6 +31,37 @@ export interface TraceStep {
   timestamp: string;
 }
 
+export interface ThreatDetail {
+  ioc: string;
+  type: string;
+  risk_score: number;
+  detail: string;
+  source: string;
+}
+
+export interface ThreatIntelReport {
+  has_threats: boolean;
+  ips_found: string[];
+  hashes_found: string[];
+  urls_found: string[];
+  threat_details: ThreatDetail[];
+  risk_score_max: number;
+  formatted_summary: string;
+}
+
+export interface AuditCertificate {
+  case_id: string;
+  certificate_id: string;
+  timestamp: string;
+  merkle_root_hash: string;
+  previous_block_hash: string;
+  outcome: string;
+  model_armor_verdict: string;
+  actor_identity: string;
+  signature: string;
+  verified: boolean;
+}
+
 export interface IngestResult {
   case_id: string;
   status: "quarantined" | "actioned";
@@ -38,7 +69,10 @@ export interface IngestResult {
   triage: Triage | null;
   action: ActionRecord | null;
   trace: { trace_id: string; case_id: string; steps: TraceStep[] };
+  threat_intel?: ThreatIntelReport | null;
+  audit_certificate?: AuditCertificate | null;
 }
+
 
 export interface CorpusCase {
   label: string;

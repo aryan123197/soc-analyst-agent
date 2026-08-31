@@ -21,7 +21,7 @@ from typing import Optional
 
 from soc_agent import config
 from soc_agent.agents import action, ingestion, triage
-from soc_agent.services import events, model_armor, store, telemetry, trace
+from soc_agent.services import audit, events, model_armor, store, telemetry, threat_intel, trace
 
 
 @dataclass
@@ -31,6 +31,9 @@ class PipelineResult:
     triage_result: Optional[triage.TriageResult]
     action_record: Optional[object]
     trace: trace.Trace
+    threat_intel_report: Optional[threat_intel.ThreatIntelReport] = None
+    audit_certificate: Optional[audit.AuditCertificate] = None
+
 
 
 def run_pipeline(
@@ -56,6 +59,24 @@ def run_pipeline(
     t1 = time.time()
     hop_durations["ingestion"] = (t1 - t0) * 1000.0
 
+    # Hop 1b: Threat Intelligence & IOC Analysis (Google Web Risk + AbuseIPDB/VT)
+    t0 = time.time()
+    with telemetry.trace_span("threat_intel_hop", case_id=item.case_id):
+        intel_report = threat_intel.analyze_iocs(item.raw_text)
+        tr.log(
+            "threat_intel",
+            f"extracted IOCs: {len(intel_report.ips_found)} IPs, {len(intel_report.hashes_found)} hashes, "
+            f"{len(intel_report.urls_found)} URLs. Max Risk Score: {intel_report.risk_score_max}/100"
+        )
+    t1 = time.time()
+    hop_durations["threat_intel"] = (t1 - t0) * 1000.0
+
+    case_store = store.get_case_store()
+    case_store.update_case(
+        item.case_id,
+        {"threat_intel": intel_report.to_dict()}
+    )
+
     # Hop 2: Model Armor screening
     t0 = time.time()
     with telemetry.trace_span("model_armor_hop", case_id=item.case_id, attributes={"armor_enabled": armor_enabled}):
@@ -69,7 +90,6 @@ def run_pipeline(
     t1 = time.time()
     hop_durations["model_armor"] = (t1 - t0) * 1000.0
 
-    case_store = store.get_case_store()
     case_store.update_case(
         item.case_id,
         {"status": "screened", "model_armor_result": armor_result.to_dict()},
@@ -87,6 +107,16 @@ def run_pipeline(
             action.quarantine(item.case_id, threat_type=armor_result.threat_type or "unknown", tr=tr)
         t1 = time.time()
         hop_durations["action"] = (t1 - t0) * 1000.0
+
+        # Sign Cryptographic Audit Certificate
+        audit_cert = audit.generate_certificate(
+            case_id=item.case_id,
+            outcome="quarantined",
+            model_armor_verdict=armor_result.verdict,
+            actor_identity="soc-agent-quarantine-edge"
+        )
+        case_store.update_case(item.case_id, {"audit_certificate": audit_cert.to_dict()})
+        tr.log("audit", f"signed SHA-256 certificate {audit_cert.certificate_id}")
 
         trace.persist_trace(tr)
         events.publish(
@@ -123,6 +153,8 @@ def run_pipeline(
             triage_result=None,
             action_record=None,
             trace=tr,
+            threat_intel_report=intel_report,
+            audit_certificate=audit_cert,
         )
 
     # Hop 3: Triage agent
@@ -134,6 +166,7 @@ def run_pipeline(
             channel=source_channel,
             screened_content=item.raw_text,
             tr=tr,
+            threat_intel_summary=intel_report.formatted_summary,
         )
     t1 = time.time()
     hop_durations["triage"] = (t1 - t0) * 1000.0
@@ -162,6 +195,16 @@ def run_pipeline(
             tr.log("memory_bank", f"wrote summary for sender domain of {sender}")
     t1 = time.time()
     hop_durations["memory_bank"] = (t1 - t0) * 1000.0
+
+    # Sign Cryptographic Audit Certificate
+    audit_cert = audit.generate_certificate(
+        case_id=item.case_id,
+        outcome="actioned",
+        model_armor_verdict=armor_result.verdict,
+        actor_identity="soc-agent-gateway-v1"
+    )
+    case_store.update_case(item.case_id, {"audit_certificate": audit_cert.to_dict()})
+    tr.log("audit", f"signed SHA-256 certificate {audit_cert.certificate_id}")
 
     trace.persist_trace(tr)
     events.publish(
@@ -202,5 +245,8 @@ def run_pipeline(
         triage_result=triage_result,
         action_record=action_record,
         trace=tr,
+        threat_intel_report=intel_report,
+        audit_certificate=audit_cert,
     )
+
 

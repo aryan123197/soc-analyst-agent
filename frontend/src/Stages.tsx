@@ -112,6 +112,13 @@ export function Stages({ res, armorAtRun }: { res: IngestResult; armorAtRun: boo
 
   return (
     <div>
+      {res.threat_intel && res.threat_intel.has_threats && (
+        <div style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: 8, padding: "0.65rem 0.85rem", marginBottom: 12 }}>
+          <div style={{ color: "var(--amber)", fontSize: 11, fontWeight: 700 }}>🔍 THREAT INTEL ALERT & GOOGLE WEB RISK</div>
+          <div style={{ fontSize: 11, color: "var(--fg)", whiteSpace: "pre-wrap", marginTop: 4 }}>{res.threat_intel.formatted_summary}</div>
+        </div>
+      )}
+
       {stages.map((s, i) => (
         <div key={s.key}>
           <div className={`stage ${s.state}`}>
@@ -127,8 +134,21 @@ export function Stages({ res, armorAtRun }: { res: IngestResult; armorAtRun: boo
           )}
         </div>
       ))}
+
+      {res.audit_certificate && (
+        <div style={{ background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: 8, padding: "0.65rem 0.85rem", marginTop: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ok)" }}>🔐 IMMUTABLE CRYPTOGRAPHIC AUDIT CERTIFICATE</span>
+            <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--ok)", fontWeight: 700 }}>VERIFIED (SHA-256)</span>
+          </div>
+          <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--faint)", marginTop: 4 }}>
+            Cert: {res.audit_certificate.certificate_id} | Merkle Root: {res.audit_certificate.merkle_root_hash.slice(0, 16)}... | Actor: {res.audit_certificate.actor_identity}
+          </div>
+        </div>
+      )}
     </div>
   );
+
 }
 
 export function TraceSteps({ res }: { res: IngestResult }) {

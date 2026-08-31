@@ -60,6 +60,37 @@ class LocalCaseStore:
     def list_cases(self) -> list[dict[str, Any]]:
         return list(self._read_all().values())
 
+    def add_webhook_update(
+        self,
+        case_id: str,
+        source: str,
+        status: str,
+        notes: Optional[str] = None,
+        payload: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        update_entry = {
+            "source": source,
+            "external_status": status,
+            "analyst_notes": notes,
+            "received_at": _now(),
+            "payload": payload or {},
+        }
+        case = self.get_case(case_id)
+        if not case:
+            raise KeyError(f"unknown case_id: {case_id}")
+
+        history = list(case.get("webhook_history") or [])
+        history.append(update_entry)
+
+        patch = {
+            "external_status": status,
+            "external_notes": notes,
+            "last_webhook_update": update_entry["received_at"],
+            "webhook_history": history,
+        }
+        self.update_case(case_id, patch)
+        return update_entry
+
 
 class FirestoreCaseStore:
     """Real Firestore-backed store for cases/{caseId}."""
@@ -83,6 +114,37 @@ class FirestoreCaseStore:
 
     def list_cases(self) -> list[dict[str, Any]]:
         return [d.to_dict() for d in self._collection.stream()]
+
+    def add_webhook_update(
+        self,
+        case_id: str,
+        source: str,
+        status: str,
+        notes: Optional[str] = None,
+        payload: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        update_entry = {
+            "source": source,
+            "external_status": status,
+            "analyst_notes": notes,
+            "received_at": _now(),
+            "payload": payload or {},
+        }
+        case = self.get_case(case_id)
+        if not case:
+            raise KeyError(f"unknown case_id: {case_id}")
+
+        history = list(case.get("webhook_history") or [])
+        history.append(update_entry)
+
+        patch = {
+            "external_status": status,
+            "external_notes": notes,
+            "last_webhook_update": update_entry["received_at"],
+            "webhook_history": history,
+        }
+        self.update_case(case_id, patch)
+        return update_entry
 
 
 def get_case_store():
@@ -110,6 +172,14 @@ def make_case(
         },
         "raw_content_ref": raw_content_ref,
         "model_armor_result": None,
+        "threat_intel": None,
         "triage": None,
         "action_taken": None,
+        "audit_certificate": None,
+        "integrations": None,
+        "external_status": None,
+        "external_notes": None,
+        "last_webhook_update": None,
+        "webhook_history": [],
     }
+

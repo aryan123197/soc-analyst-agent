@@ -53,3 +53,17 @@ export async function setReplay(
     }),
   );
 }
+
+export async function encodeRedTeam(
+  payload: string,
+  encoding_type: string
+): Promise<{ original_payload: string; encoding_type: string; mutated_payload: string }> {
+  return asJson(
+    await fetch("/api/v1/redteam/encode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payload, encoding_type }),
+    })
+  );
+}
+
