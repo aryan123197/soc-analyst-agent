@@ -301,6 +301,18 @@ class ReplayRequest(BaseModel):
     interval: float = 8.0
 
 
+@app.on_event("startup")
+def auto_start_replay_feed():
+    # Automatically start live stream traffic engine on server launch
+    replay.get_source().start()
+
+
+@app.post("/live/campaign")
+def trigger_live_campaign():
+    source = replay.get_source()
+    return source.trigger_campaign_sequence()
+
+
 @app.post("/live/replay")
 def control_replay(req: ReplayRequest):
     source = replay.get_source()

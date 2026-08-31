@@ -483,11 +483,6 @@
 
       <!-- Tab 1: Presets -->
       <div class="tab-content active" id="tab-presets">
-        <div class="demo-actions-bar">
-          <button class="btn btn-warning" id="btn-before-after" style="flex-grow:1; font-size:11px; padding:0.4rem 0.65rem;" onclick="runBeforeAfterDemo()">
-            ⚔️ Run 1-Click Before/After Demo Clip (Segment 3)
-          </button>
-        </div>
         <div class="preset-list" id="preset-list">
           <div class="preset-desc" style="padding: 1rem; text-align: center;">Loading attack corpus...</div>
         </div>
@@ -523,6 +518,7 @@
       <div class="tab-content" id="tab-feeds">
         <div style="display:flex; flex-direction:column; gap:0.75rem; padding:0.5rem 0;">
           <button class="btn btn-secondary" id="btn-replay" onclick="toggleSource('replay')">Start Replay Traffic Stream</button>
+          <button class="btn btn-primary" style="background:linear-gradient(135deg, var(--accent-purple), var(--accent-cyan)); border:none; font-weight:700;" onclick="triggerCampaignStream()">⚡ Trigger Multi-Turn Campaign Stream</button>
           <button class="btn btn-secondary" id="btn-gmail" onclick="handleGmailClick()">Start Monitored Gmail Inbox Watch</button>
         </div>
       </div>
@@ -1106,6 +1102,16 @@ function getOrCreateCaseCard(caseId) {
         </button>
       </div>
     </div>
+
+    <!-- Enterprise SIEM & ITSM Connectors Bar -->
+    <div class="connectors-sync-bar" style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; margin-top:0.5rem; font-size:10px; font-family:var(--font-mono); color:var(--text-secondary);">
+      <span style="font-weight:700; color:var(--accent-cyan);">🔌 CONNECTORS SYNC:</span>
+      <span style="background:rgba(6,182,212,0.1); border:1px solid rgba(6,182,212,0.3); border-radius:4px; padding:1px 5px; color:var(--accent-cyan);">Jira Service Desk</span>
+      <span style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); border-radius:4px; padding:1px 5px; color:var(--accent-green);">ServiceNow ITSM</span>
+      <span style="background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.3); border-radius:4px; padding:1px 5px; color:#60a5fa;">Salesforce Cloud</span>
+      <span style="background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.3); border-radius:4px; padding:1px 5px; color:var(--accent-purple);">Splunk HEC</span>
+      <span style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:1px 5px; color:var(--accent-amber);">PagerDuty</span>
+    </div>
     
     <!-- Human in the loop review box -->
     <div class="hitl-box" style="display:none;">
@@ -1375,6 +1381,16 @@ function handleGmailClick() {
 
 function closeGmailModal() {
   document.getElementById("gmail-modal").classList.remove("active");
+}
+
+async function triggerCampaignStream() {
+  try {
+    const res = await fetch("/live/campaign", { method: "POST" });
+    const data = await res.json();
+    console.log("Campaign stream triggered:", data);
+  } catch (err) {
+    alert("Campaign trigger failed: " + err);
+  }
 }
 
 async function toggleSource(src) {

@@ -1,8 +1,10 @@
 # Enterprise System Design & Architecture Specification — SOC Analyst Agent
 
 **Project:** SOC Analyst Agent — Zero-Trust Security Pipeline  
+**GCP Project Name:** `SOC Analyst Agent` (Project ID: `newproject-464521`)  
 **Target Architecture:** Fortified Enterprise Fleet  
 **Cloud Infrastructure:** Google Cloud Platform (`us-central1` / `global`)  
+**Live Endpoint URL:** [https://soc-analyst-agent-ek2ft62bza-uc.a.run.app](https://soc-analyst-agent-ek2ft62bza-uc.a.run.app)  
 **Core Technologies:** Vertex AI Model Armor, Gemini 3.5 Flash, GEAP Memory Bank, Google Cloud Web Risk API, Cloud Firestore, Cloud Run, OpenTelemetry
 
 ---

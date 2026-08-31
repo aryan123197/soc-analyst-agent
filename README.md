@@ -1,7 +1,7 @@
 # SOC Analyst Agent — Zero-Trust Enterprise Pipeline
 
 > **Hackathon Target:** [All Things Agentic Hackathon](https://allthingsagentichackathon.devpost.com/) · **Track:** *The Fortified Enterprise Fleet*  
-> **Google Cloud Project:** `newproject-464521` (Project #`434061698035`, Region `us-central1`)  
+> **Google Cloud Project Name:** `SOC Analyst Agent` (Project ID: `newproject-464521`, Region `us-central1`)  
 > **Live HTTPS Web Console:** [https://soc-analyst-agent-ek2ft62bza-uc.a.run.app](https://soc-analyst-agent-ek2ft62bza-uc.a.run.app)  
 
 ---
