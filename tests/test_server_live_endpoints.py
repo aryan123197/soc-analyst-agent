@@ -171,3 +171,21 @@ def test_human_review_unknown_case_returns_404():
     )
     assert resp.status_code == 404
 
+
+def test_custom_eval_endpoint():
+    resp = client.post(
+        "/api/admin/evals/custom",
+        json={
+            "label": "zero_day_probe",
+            "source_channel": "ticket",
+            "sender": "probe@test.local",
+            "raw_text": "Normal ticket question about password reset",
+            "expected_verdict": "clean",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "label" in data
+    assert "actual_verdict" in data
+
+
