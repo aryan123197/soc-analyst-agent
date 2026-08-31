@@ -8,7 +8,7 @@ successful prompt injection to hijack here.
 """
 from dataclasses import dataclass
 
-from soc_agent.services import raw_content, store, trace
+from soc_agent.services import events, raw_content, store, trace
 
 
 @dataclass
@@ -26,6 +26,16 @@ def ingest(source_channel: str, sender: str, raw_text: str) -> tuple[IngestedIte
     case_store.create_case(case)
 
     tr = trace.new_trace(case["case_id"])
+    events.publish(
+        "case_start",
+        {
+            "case_id": case["case_id"],
+            "trace_id": tr.trace_id,
+            "source_channel": source_channel,
+            "sender": sender,
+            "preview": raw_text[:280],
+        },
+    )
     tr.log("ingestion", f"received {source_channel} from {sender}, stored as {raw_ref}")
 
     return IngestedItem(case_id=case["case_id"], raw_content_ref=raw_ref, raw_text=raw_text), tr

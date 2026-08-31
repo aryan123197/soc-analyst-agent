@@ -20,7 +20,7 @@ from typing import Optional
 
 from soc_agent import config
 from soc_agent.agents import action, ingestion, triage
-from soc_agent.services import model_armor, store, trace
+from soc_agent.services import events, model_armor, store, trace
 
 
 @dataclass
@@ -63,6 +63,18 @@ def run_pipeline(
     if armor_result.verdict == "blocked":
         action.quarantine(item.case_id, threat_type=armor_result.threat_type or "unknown", tr=tr)
         trace.persist_trace(tr)
+        events.publish(
+            "case_complete",
+            {
+                "case_id": item.case_id,
+                "outcome": "quarantined",
+                "armor_verdict": armor_result.verdict,
+                "armor_threat_type": armor_result.threat_type,
+                "severity": None,
+                "category": None,
+                "action_taken": None,
+            },
+        )
         return PipelineResult(
             case_id=item.case_id,
             armor_result=armor_result,
@@ -91,6 +103,18 @@ def run_pipeline(
     )
     tr.log("memory_bank", f"wrote summary for sender domain of {sender}")
     trace.persist_trace(tr)
+    events.publish(
+        "case_complete",
+        {
+            "case_id": item.case_id,
+            "outcome": "actioned",
+            "armor_verdict": armor_result.verdict,
+            "armor_threat_type": armor_result.threat_type,
+            "severity": triage_result.severity,
+            "category": triage_result.category,
+            "action_taken": action_record.type,
+        },
+    )
 
     return PipelineResult(
         case_id=item.case_id,

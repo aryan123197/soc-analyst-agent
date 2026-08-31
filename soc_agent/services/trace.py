@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from soc_agent import config
+from soc_agent.services import events
 
 _LOCAL_DIR = Path(__file__).resolve().parent.parent.parent / "local_data"
 _LOCAL_TRACES_FILE = _LOCAL_DIR / "traces.json"
@@ -39,7 +40,12 @@ class Trace:
     steps: list[TraceStep] = field(default_factory=list)
 
     def log(self, hop: str, detail: str) -> None:
-        self.steps.append(TraceStep(hop=hop, detail=detail))
+        step = TraceStep(hop=hop, detail=detail)
+        self.steps.append(step)
+        events.publish(
+            "hop",
+            {"trace_id": self.trace_id, "case_id": self.case_id, **step.to_dict()},
+        )
 
     def render(self) -> str:
         lines = [f"trace_id={self.trace_id} case_id={self.case_id}"]

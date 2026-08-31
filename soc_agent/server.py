@@ -8,15 +8,23 @@ what routes the app itself defines; confirmed by comparing headers on /healthz
 vs /docs -- only /docs carried Cloud Run's `server: Google Frontend` and
 `x-cloud-trace-context` headers).
 """
+import json
+import queue
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 from soc_agent.corpus.attack_cases import CASES
 from soc_agent.pipeline import run_pipeline
+from soc_agent.services import events
 from soc_agent.services import trace as trace_service
+from soc_agent.sources import gmail, replay
 
 app = FastAPI(title="SOC Analyst Agent")
+
+_DASHBOARD_HTML = Path(__file__).resolve().parent / "static" / "dashboard.html"
 
 
 class IngestRequest(BaseModel):
@@ -113,6 +121,85 @@ def ingest(req: IngestRequest):
         action=ActionView(**result.action_record.to_dict()) if result.action_record else None,
         trace=TraceView(**result.trace.to_dict()),
     )
+
+
+@app.get("/live", response_class=HTMLResponse)
+def live_dashboard():
+    """Real-time SOC console — renders cases as the pipeline processes them."""
+    return _DASHBOARD_HTML.read_text()
+
+
+@app.get("/live/stream")
+def live_stream():
+    """Server-Sent Events feed of every pipeline hop, pushed as it happens."""
+
+    def generate():
+        q = events.subscribe()
+        try:
+            yield ": connected\n\n"
+            while True:
+                try:
+                    event = q.get(timeout=15)
+                except queue.Empty:
+                    yield ": keepalive\n\n"  # keeps proxies from closing an idle stream
+                    continue
+                yield f"data: {json.dumps(event)}\n\n"
+        finally:
+            events.unsubscribe(q)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+class ReplayRequest(BaseModel):
+    action: str  # "start" | "stop"
+    interval: float = 8.0
+
+
+@app.post("/live/replay")
+def control_replay(req: ReplayRequest):
+    source = replay.get_source()
+    if req.action == "start":
+        source.interval = req.interval
+        source.start()
+    elif req.action == "stop":
+        source.stop()
+    else:
+        raise HTTPException(status_code=400, detail="action must be 'start' or 'stop'")
+    return {"running": source.running, "interval": source.interval}
+
+
+class GmailRequest(BaseModel):
+    action: str  # "start" | "stop"
+    interval: float = 10.0
+
+
+@app.post("/live/gmail")
+def control_gmail(req: GmailRequest):
+    source = gmail.get_source()
+    if req.action == "start":
+        source.interval = req.interval
+        try:
+            source.start()
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"could not start Gmail source: {exc}")
+    elif req.action == "stop":
+        source.stop()
+    else:
+        raise HTTPException(status_code=400, detail="action must be 'start' or 'stop'")
+    return {"running": source.running, "interval": source.interval, "last_error": source.last_error}
+
+
+@app.get("/live/sources")
+def source_status():
+    g, r = gmail.get_source(), replay.get_source()
+    return {
+        "gmail": {"running": g.running, "interval": g.interval, "last_error": g.last_error},
+        "replay": {"running": r.running, "interval": r.interval},
+    }
 
 
 @app.get("/traces/{case_id}")
