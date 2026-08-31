@@ -1308,24 +1308,30 @@ async function fetchTelemetrySummary() {
 async function runBenchmarkEvals() {
   const btn = document.getElementById("btn-run-evals");
   btn.disabled = true;
-  btn.textContent = "Executing Evals (9 Cases)...";
+  btn.textContent = "⚡ Running Benchmark Suite (9 Cases)...";
 
   try {
-    const res = await fetch("/api/admin/evals/run", { method: "POST" });
+    const res = await fetch("/api/admin/evals/run", { 
+      method: "POST",
+      headers: { "Accept": "application/json" }
+    });
     if (!res.ok) {
-      alert("Failed to execute benchmark evals.");
+      const errText = await res.text().catch(() => "");
+      alert(`Eval execution error (Status ${res.status}): ${errText || res.statusText}`);
       return;
     }
     const data = await res.json();
     renderEvalRun(data);
     fetchTelemetrySummary();
   } catch (err) {
-    alert("Network error running evals: " + err);
+    console.error("Eval run exception:", err);
+    alert("Network error running evals: " + err.message);
   } finally {
     btn.disabled = false;
     btn.textContent = "Run Benchmark Suite (9 Cases)";
   }
 }
+
 
 async function submitCustomEval(e) {
   e.preventDefault();

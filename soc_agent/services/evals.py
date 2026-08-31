@@ -116,55 +116,87 @@ class FirestoreEvalStore:
 def get_eval_store():
     if config.USE_LOCAL_STORE:
         return LocalEvalStore()
-    return FirestoreEvalStore()
+    try:
+        return FirestoreEvalStore()
+    except Exception:
+        return LocalEvalStore()
+
+
+
+def _eval_single_case(case: Dict[str, Any]) -> CaseEvalResult:
+    from soc_agent.pipeline import run_pipeline
+
+    t0 = time.time()
+    res = run_pipeline(
+        source_channel=case["source_channel"],
+        sender=case["sender"],
+        raw_text=case["raw_text"],
+        armor_enabled=True,
+        synthetic=True
+    )
+    t1 = time.time()
+    latency = (t1 - t0) * 1000.0
+
+    actual_verdict = res.armor_result.verdict
+    actual_threat = res.armor_result.threat_type
+    expected_verdict = case["expected_verdict"]
+    expected_threat = case.get("expected_threat_type")
+
+    passed = (actual_verdict == expected_verdict)
+    triage_severity = res.triage_result.severity if res.triage_result else None
+    llm_used = res.triage_result.llm_used if res.triage_result else False
+
+    return CaseEvalResult(
+        label=case["label"],
+        description=case["description"],
+        source_channel=case["source_channel"],
+        sender=case["sender"],
+        expected_verdict=expected_verdict,
+        actual_verdict=actual_verdict,
+        expected_threat_type=expected_threat,
+        actual_threat_type=actual_threat,
+        passed=passed,
+        triage_severity=triage_severity,
+        llm_used=llm_used,
+        latency_ms=latency
+    )
 
 
 def run_benchmark_evals() -> EvalRun:
-    """Executes the pipeline against all 9 curated attack cases and records evaluation stats."""
-    from soc_agent.pipeline import run_pipeline
+    """Executes the pipeline against all 9 curated attack cases in parallel and records evaluation stats."""
+    import concurrent.futures
     from datetime import datetime, timezone
 
     start_run_time = time.time()
     results: List[CaseEvalResult] = []
 
-    for case in CASES:
-        t0 = time.time()
-        res = run_pipeline(
-            source_channel=case["source_channel"],
-            sender=case["sender"],
-            raw_text=case["raw_text"],
-            armor_enabled=True,
-            synthetic=True
-        )
-        t1 = time.time()
-        latency = (t1 - t0) * 1000.0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_case = {executor.submit(_eval_single_case, case): case for case in CASES}
 
-        actual_verdict = res.armor_result.verdict
-        actual_threat = res.armor_result.threat_type
-        expected_verdict = case["expected_verdict"]
-        expected_threat = case.get("expected_threat_type")
+        for future in concurrent.futures.as_completed(future_to_case):
+            try:
+                eval_res = future.result()
+                results.append(eval_res)
+            except Exception as exc:
+                case = future_to_case[future]
+                results.append(CaseEvalResult(
+                    label=case["label"],
+                    description=case["description"],
+                    source_channel=case["source_channel"],
+                    sender=case["sender"],
+                    expected_verdict=case["expected_verdict"],
+                    actual_verdict="error",
+                    expected_threat_type=case.get("expected_threat_type"),
+                    actual_threat_type=str(exc),
+                    passed=False,
+                    triage_severity=None,
+                    llm_used=False,
+                    latency_ms=0.0
+                ))
 
-        # Case passes if verdict matches expectation
-        passed = (actual_verdict == expected_verdict)
-
-        triage_severity = res.triage_result.severity if res.triage_result else None
-        llm_used = res.triage_result.llm_used if res.triage_result else False
-
-        case_eval = CaseEvalResult(
-            label=case["label"],
-            description=case["description"],
-            source_channel=case["source_channel"],
-            sender=case["sender"],
-            expected_verdict=expected_verdict,
-            actual_verdict=actual_verdict,
-            expected_threat_type=expected_threat,
-            actual_threat_type=actual_threat,
-            passed=passed,
-            triage_severity=triage_severity,
-            llm_used=llm_used,
-            latency_ms=latency
-        )
-        results.append(case_eval)
+    # Maintain consistent ordering matching CASES
+    case_order = {c["label"]: idx for idx, c in enumerate(CASES)}
+    results.sort(key=lambda r: case_order.get(r.label, 999))
 
     total_cases = len(results)
     passed_cases = sum(1 for r in results if r.passed)
@@ -178,6 +210,7 @@ def run_benchmark_evals() -> EvalRun:
     timestamp = datetime.now(timezone.utc).isoformat()
 
     eval_run = EvalRun(
+
         run_id=run_id,
         timestamp=timestamp,
         total_cases=total_cases,
