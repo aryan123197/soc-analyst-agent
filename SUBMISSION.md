@@ -3,6 +3,8 @@
 **Track Target:** The Fortified Enterprise Fleet  
 **Hackathon:** [All Things Agentic Hackathon](https://allthingsagentichackathon.devpost.com/)  
 **Google Cloud Project:** `newproject-464521` (Project Number `434061698035`, Region `us-central1`)  
+**Live Cloud Run HTTPS URL:** [https://soc-analyst-agent-ek2ft62bza-uc.a.run.app](https://soc-analyst-agent-ek2ft62bza-uc.a.run.app)  
+
 
 ---
 
