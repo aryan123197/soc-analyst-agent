@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SOC Analyst Agent — Cyber Defense Console</title>
+<title>SOC Analyst Agent — Cyber Defense Command Center</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-dark: #070a0f;
-    --bg-card: #0f172a;
-    --bg-card-hover: #1e293b;
-    --border-color: #334155;
+    --bg-dark: #06090e;
+    --bg-card: #0d131e;
+    --bg-card-hover: #151d2a;
+    --border-color: #1e293b;
     --border-glowing: #38bdf8;
     
     --text-primary: #f8fafc;
@@ -52,25 +52,25 @@
     position: sticky; top: 0; z-index: 100;
     display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
     gap: 1rem; padding: 0.85rem 1.5rem;
-    background: rgba(15, 23, 42, 0.9);
+    background: rgba(13, 19, 30, 0.92);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border-color);
   }
 
   .brand { display: flex; align-items: center; gap: 0.75rem; }
   .shield-icon {
-    width: 28px; height: 28px;
+    width: 32px; height: 32px;
     background: linear-gradient(135deg, #0284c7, #6366f1);
-    border-radius: 6px; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
   }
-  .shield-icon svg { width: 16px; height: 16px; fill: white; }
-  h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
-  .subtitle { font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); }
+  .shield-icon svg { width: 18px; height: 18px; fill: white; }
+  h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
+  .subtitle { font-size: 11px; color: var(--accent-cyan); font-family: var(--font-mono); font-weight: 500; }
 
   .status-badge {
     display: inline-flex; align-items: center; gap: 0.5rem;
-    padding: 0.3rem 0.75rem; border-radius: 9999px;
+    padding: 0.35rem 0.85rem; border-radius: 9999px;
     background: rgba(30, 41, 59, 0.8); border: 1px solid var(--border-color);
     font-size: 12px; font-family: var(--font-mono); color: var(--text-secondary);
   }
@@ -90,12 +90,12 @@
     100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
   }
 
-  .stats-deck { display: flex; gap: 1rem; }
+  .stats-deck { display: flex; gap: 0.85rem; }
   .stat-card {
-    background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-color);
-    border-radius: 6px; padding: 0.35rem 0.85rem; text-align: center; min-width: 85px;
+    background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color);
+    border-radius: 8px; padding: 0.4rem 0.85rem; text-align: center; min-width: 90px;
   }
-  .stat-card .val { font-size: 18px; font-weight: 700; font-family: var(--font-mono); line-height: 1.1; }
+  .stat-card .val { font-size: 18px; font-weight: 800; font-family: var(--font-mono); line-height: 1.1; }
   .stat-card .lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
   .val.total { color: var(--accent-cyan); }
   .val.quarantined { color: var(--accent-red); }
@@ -103,66 +103,92 @@
   .val.cleared { color: var(--accent-green); }
 
   /* Main Container */
-  main { max-width: 1300px; margin: 0 auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
+  main { max-width: 1350px; margin: 0 auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
 
   /* Grid Layout for Controls */
   .controls-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;
+    display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 1.25rem;
   }
-  @media (max-width: 900px) { .controls-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 950px) { .controls-grid { grid-template-columns: 1fr; } }
 
   .panel-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 1.25rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.4);
+    display: flex; flex-direction: column;
   }
   .panel-title {
     font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
     color: var(--accent-cyan); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between;
   }
 
+  /* Multi-Source Navigation Tabs */
+  .source-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
+  .tab-btn {
+    background: transparent; border: none; color: var(--text-secondary);
+    font-family: var(--font-sans); font-size: 12px; font-weight: 600; padding: 0.4rem 0.8rem;
+    border-radius: 6px; cursor: pointer; transition: all 0.2s ease;
+  }
+  .tab-btn:hover { color: var(--text-primary); background: rgba(30, 41, 59, 0.5); }
+  .tab-btn.active { color: var(--accent-cyan); background: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.3); }
+
+  /* Tab Contents */
+  .tab-content { display: none; }
+  .tab-content.active { display: flex; flex-direction: column; gap: 0.5rem; flex-grow: 1; }
+
   /* Preset Runner Section */
-  .preset-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 280px; overflow-y: auto; padding-right: 4px; }
+  .preset-list { display: flex; flex-direction: column; gap: 0.55rem; max-height: 280px; overflow-y: auto; padding-right: 4px; }
   .preset-item {
-    background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-color);
-    border-radius: 6px; padding: 0.6rem 0.85rem; cursor: pointer;
+    background: rgba(21, 29, 42, 0.7); border: 1px solid var(--border-color);
+    border-radius: 8px; padding: 0.65rem 0.85rem; cursor: pointer;
     display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
     transition: all 0.2s ease;
   }
   .preset-item:hover {
-    border-color: var(--accent-cyan); background: rgba(6, 182, 212, 0.08);
+    border-color: var(--accent-cyan); background: rgba(6, 182, 212, 0.08); transform: translateX(2px);
   }
   .preset-info { display: flex; flex-direction: column; gap: 2px; }
-  .preset-label { font-size: 12px; font-weight: 600; font-family: var(--font-mono); color: var(--text-primary); }
+  .preset-label { font-size: 12px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary); }
   .preset-desc { font-size: 11px; color: var(--text-muted); line-height: 1.3; }
   .preset-tag {
-    font-size: 10px; font-family: var(--font-mono); font-weight: 600; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; flex-shrink: 0;
+    font-size: 10px; font-family: var(--font-mono); font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; flex-shrink: 0;
   }
-  .tag-blocked { background: var(--accent-red-bg); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.3); }
-  .tag-clean { background: var(--accent-green-bg); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.3); }
+  .tag-blocked { background: var(--accent-red-bg); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.4); }
+  .tag-clean { background: var(--accent-green-bg); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.4); }
+
+  /* Drag & Drop File Upload Zone */
+  .upload-zone {
+    border: 2px dashed var(--border-color); border-radius: 10px; padding: 2rem 1rem;
+    text-align: center; background: rgba(7, 10, 15, 0.4); cursor: pointer; transition: all 0.25s ease;
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent-cyan); background: rgba(6, 182, 212, 0.05); }
+  .upload-icon { font-size: 28px; color: var(--accent-cyan); }
+  .upload-text { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .upload-sub { font-size: 11px; color: var(--text-muted); }
 
   /* Custom Submitter Form */
   .form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.85rem; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-  label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.04em; }
+  label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.04em; }
   input, select, textarea {
-    background: #090d16; border: 1px solid var(--border-color); border-radius: 6px;
+    background: #070a0f; border: 1px solid var(--border-color); border-radius: 6px;
     color: var(--text-primary); font-family: var(--font-mono); font-size: 12px;
     padding: 0.55rem 0.75rem; transition: border-color 0.2s ease; outline: none;
   }
   input:focus, select:focus, textarea:focus { border-color: var(--accent-cyan); box-shadow: 0 0 0 2px rgba(6,182,212,0.2); }
-  textarea { resize: vertical; min-height: 80px; }
+  textarea { resize: vertical; min-height: 85px; }
 
   /* Toggle Switch */
   .toggle-container {
     display: flex; align-items: center; justify-content: space-between;
-    background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color);
-    border-radius: 6px; padding: 0.65rem 0.85rem; margin-bottom: 1rem;
+    background: rgba(21, 29, 42, 0.6); border: 1px solid var(--border-color);
+    border-radius: 8px; padding: 0.75rem 0.85rem; margin-bottom: 1rem;
   }
   .toggle-label-wrap { display: flex; flex-direction: column; gap: 2px; }
-  .toggle-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .toggle-title { font-size: 12px; font-weight: 700; color: var(--text-primary); }
   .toggle-sub { font-size: 10px; color: var(--text-muted); }
   
   .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
@@ -179,75 +205,84 @@
   input:checked + .slider:before { transform: translateX(20px); }
 
   .btn {
-    font-family: var(--font-sans); font-size: 12px; font-weight: 600;
-    padding: 0.6rem 1.25rem; border-radius: 6px; cursor: pointer;
+    font-family: var(--font-sans); font-size: 12px; font-weight: 700;
+    padding: 0.65rem 1.25rem; border-radius: 6px; cursor: pointer;
     border: 1px solid transparent; transition: all 0.2s ease;
     display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
   }
   .btn-primary {
     background: linear-gradient(135deg, #0284c7, #2563eb); color: white;
-    box-shadow: 0 2px 10px rgba(2, 132, 199, 0.3);
+    box-shadow: 0 2px 12px rgba(2, 132, 199, 0.35);
   }
   .btn-primary:hover { background: linear-gradient(135deg, #0369a1, #1d4ed8); }
   .btn-secondary {
     background: rgba(30, 41, 59, 0.8); border-color: var(--border-color); color: var(--text-secondary);
   }
   .btn-secondary:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+  
+  .btn-success { background: var(--accent-green-bg); color: var(--accent-green); border-color: rgba(16, 185, 129, 0.4); }
+  .btn-danger { background: var(--accent-red-bg); color: var(--accent-red); border-color: rgba(239, 68, 68, 0.4); }
+  .btn-warning { background: var(--accent-amber-bg); color: var(--accent-amber); border-color: rgba(245, 158, 11, 0.4); }
+
   .btn-full { width: 100%; }
 
-  /* Stream Controls Bar */
+  /* Stream & Filter Controls Bar */
   .stream-bar {
-    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
-    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem 1.25rem;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.75rem 1.25rem;
   }
-  .stream-title { font-size: 13px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem; }
-  .button-group { display: flex; gap: 0.5rem; }
+  .stream-filters { display: flex; gap: 0.5rem; }
+  .filter-btn {
+    background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); color: var(--text-muted);
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer;
+  }
+  .filter-btn:hover, .filter-btn.active { color: var(--text-primary); border-color: var(--accent-cyan); background: rgba(6, 182, 212, 0.12); }
 
   /* Incident Stream / Case Cards */
   .cases-list { display: flex; flex-direction: column; gap: 1rem; }
   .case-card {
     background: var(--bg-card); border: 1px solid var(--border-color);
-    border-left: 4px solid var(--text-muted); border-radius: 8px;
-    padding: 1rem 1.25rem; transition: all 0.3s ease; animation: fadeIn 0.3s ease-out;
+    border-left: 5px solid var(--text-muted); border-radius: 10px;
+    padding: 1.1rem 1.35rem; transition: all 0.3s ease; animation: fadeIn 0.3s ease-out;
   }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 
-  .case-card.quarantined { border-left-color: var(--accent-red); }
-  .case-card.escalated { border-left-color: var(--accent-amber); }
+  .case-card.quarantined { border-left-color: var(--accent-red); box-shadow: -4px 0 15px rgba(239, 68, 68, 0.1); }
+  .case-card.escalated { border-left-color: var(--accent-amber); box-shadow: -4px 0 15px rgba(245, 158, 11, 0.1); }
   .case-card.notified { border-left-color: var(--accent-blue); }
-  .case-card.closed { border-left-color: var(--accent-green); }
+  .case-card.closed { border-left-color: var(--accent-green); box-shadow: -4px 0 15px rgba(16, 185, 129, 0.1); }
 
-  .case-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
-  .meta-pills { display: flex; align-items: center; gap: 0.5rem; }
+  .case-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.65rem; }
+  .meta-pills { display: flex; align-items: center; gap: 0.6rem; }
   .pill-chan {
     font-size: 10px; font-family: var(--font-mono); font-weight: 700; text-transform: uppercase;
-    background: rgba(30, 41, 59, 0.8); border: 1px solid var(--border-color); color: var(--text-secondary);
+    background: rgba(30, 41, 59, 0.8); border: 1px solid var(--border-color); color: var(--accent-cyan);
     padding: 2px 8px; border-radius: 4px;
   }
-  .sender-name { font-weight: 600; font-size: 13px; color: var(--text-primary); }
+  .sender-name { font-weight: 700; font-size: 13px; color: var(--text-primary); }
   .case-id-tag { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
 
   .case-body {
-    background: rgba(7, 10, 15, 0.6); border: 1px solid rgba(51, 65, 85, 0.5); border-radius: 6px;
-    padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
-    white-space: pre-wrap; word-break: break-word; max-height: 5em; overflow: hidden; margin-bottom: 0.75rem;
+    background: rgba(7, 10, 15, 0.7); border: 1px solid rgba(51, 65, 85, 0.5); border-radius: 6px;
+    padding: 0.75rem 0.95rem; font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
+    white-space: pre-wrap; word-break: break-word; max-height: 5.5em; overflow: hidden; margin-bottom: 0.85rem;
   }
 
   /* Pipeline Hop Badges */
   .pipeline-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   .hop-badge {
-    font-size: 10px; font-family: var(--font-mono); font-weight: 600; text-transform: uppercase;
-    padding: 3px 8px; border-radius: 4px; background: rgba(30, 41, 59, 0.6); color: var(--text-muted);
+    font-size: 10px; font-family: var(--font-mono); font-weight: 700; text-transform: uppercase;
+    padding: 4px 9px; border-radius: 4px; background: rgba(30, 41, 59, 0.6); color: var(--text-muted);
     border: 1px solid var(--border-color); transition: all 0.25s ease;
   }
   .hop-badge.done { background: var(--accent-blue-bg); color: var(--accent-blue); border-color: rgba(59, 130, 246, 0.4); }
   .hop-badge.blocked { background: var(--accent-red-bg); color: var(--accent-red); border-color: rgba(239, 68, 68, 0.4); }
-  .hop-badge.skipped { opacity: 0.4; text-decoration: line-through; }
+  .hop-badge.skipped { opacity: 0.35; text-decoration: line-through; }
   .arrow { color: var(--text-muted); font-size: 10px; }
 
   .verdict-badge {
-    margin-left: auto; font-size: 11px; font-family: var(--font-mono); font-weight: 700;
-    padding: 4px 10px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em;
+    margin-left: auto; font-size: 11px; font-family: var(--font-mono); font-weight: 800;
+    padding: 4px 12px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em;
   }
   .verdict-badge.quarantined { background: var(--accent-red-bg); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.4); }
   .verdict-badge.escalated { background: var(--accent-amber-bg); color: var(--accent-amber); border: 1px solid rgba(245,158,11,0.4); }
@@ -259,23 +294,31 @@
     background: var(--accent-amber-bg); color: var(--accent-amber); border: 1px dashed var(--accent-amber); margin-left: 0.5rem;
   }
 
+  /* Human-in-the-Loop Triage Review Banner */
+  .hitl-box {
+    margin-top: 0.85rem; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 8px; padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.65rem;
+  }
+  .hitl-head { font-size: 12px; font-weight: 700; color: var(--accent-amber); display: flex; align-items: center; justify-content: space-between; }
+  .hitl-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
   /* Trace Expandable Drawer */
   .trace-toggle {
-    margin-top: 0.6rem; display: inline-flex; align-items: center; gap: 0.4rem;
+    margin-top: 0.75rem; display: inline-flex; align-items: center; gap: 0.4rem;
     font-size: 11px; font-family: var(--font-mono); color: var(--accent-cyan); cursor: pointer; transition: color 0.2s;
   }
   .trace-toggle:hover { text-decoration: underline; color: var(--accent-blue); }
   
   .trace-drawer {
-    margin-top: 0.65rem; border-top: 1px dashed var(--border-color); padding-top: 0.65rem; display: none;
+    margin-top: 0.75rem; border-top: 1px dashed var(--border-color); padding-top: 0.75rem; display: none;
   }
   .case-card.open .trace-drawer { display: block; }
   
   .trace-hop-row {
-    display: flex; gap: 0.75rem; font-family: var(--font-mono); font-size: 11px; padding: 4px 0; border-bottom: 1px dotted rgba(51, 65, 85, 0.4);
+    display: flex; gap: 0.75rem; font-family: var(--font-mono); font-size: 11px; padding: 5px 0; border-bottom: 1px dotted rgba(51, 65, 85, 0.4);
   }
   .trace-hop-time { color: var(--text-muted); width: 65px; flex-shrink: 0; }
-  .trace-hop-name { color: var(--accent-purple); width: 95px; flex-shrink: 0; font-weight: 600; }
+  .trace-hop-name { color: var(--accent-purple); width: 105px; flex-shrink: 0; font-weight: 600; }
   .trace-hop-detail { color: var(--text-secondary); word-break: break-word; flex-grow: 1; }
 
   .empty-state {
@@ -286,52 +329,18 @@
   /* Modal Overlay for Gmail OAuth info */
   .modal-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(5px);
     display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
   }
   .modal-overlay.active { opacity: 1; pointer-events: auto; }
   .modal-card {
     background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px;
-    padding: 1.5rem; max-width: 500px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    padding: 1.5rem; max-width: 520px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
   }
-  .modal-card.wide { max-width: 850px; }
-  .modal-title { font-size: 15px; font-weight: 700; color: var(--accent-amber); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .modal-title { font-size: 15px; font-weight: 700; color: var(--accent-amber); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
   .modal-body { font-size: 12px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.25rem; }
   .modal-code { background: #070a0f; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.4rem 0.6rem; font-family: var(--font-mono); font-size: 11px; color: var(--accent-cyan); display: block; margin: 0.5rem 0; }
   .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
-
-  /* Navigation Tabs */
-  .nav-tabs { display: flex; gap: 0.5rem; margin-left: 1rem; }
-  .nav-tab {
-    background: rgba(30, 41, 59, 0.6); border: 1px solid var(--border-color); color: var(--text-secondary);
-    font-family: var(--font-sans); font-size: 12px; font-weight: 600; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;
-  }
-  .nav-tab:hover { background: rgba(51, 65, 85, 0.8); color: var(--text-primary); }
-  .nav-tab.active { background: linear-gradient(135deg, #0284c7, #2563eb); color: white; border-color: transparent; box-shadow: 0 0 10px rgba(2, 132, 199, 0.4); }
-
-  /* Observability KPI Deck */
-  .obs-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
-  @media (max-width: 900px) { .obs-kpi-grid { grid-template-columns: 1fr 1fr; } }
-  .obs-kpi-card {
-    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; text-align: center;
-  }
-  .obs-kpi-card .val { font-size: 24px; font-weight: 700; font-family: var(--font-mono); margin-bottom: 2px; }
-  .obs-kpi-card .lbl { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-
-  /* Evals Table */
-  .evals-table-container { overflow-x: auto; max-height: 400px; }
-  table.evals-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; text-align: left; }
-  table.evals-table th, table.evals-table td { padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-color); }
-  table.evals-table th { background: rgba(30, 41, 59, 0.8); color: var(--text-secondary); text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; position: sticky; top: 0; }
-  .pass-badge { background: var(--accent-green-bg); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.3); padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; }
-  .fail-badge { background: var(--accent-red-bg); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.3); padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; }
-
-  /* Waterfall Timeline Bars */
-  .waterfall-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; font-family: var(--font-mono); font-size: 11px; }
-  .waterfall-label { width: 180px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; color: var(--text-secondary); font-weight: 600; }
-  .waterfall-track { flex-grow: 1; background: rgba(30,41,59,0.5); height: 20px; border-radius: 4px; position: relative; overflow: hidden; }
-  .waterfall-bar { height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 4px; position: absolute; display: flex; align-items: center; padding: 0 6px; font-size: 10px; color: white; font-weight: 700; white-space: nowrap; }
-
 </style>
 </head>
 <body>
@@ -343,13 +352,8 @@
     </div>
     <div>
       <h1>SOC ANALYST AGENT</h1>
-      <div class="subtitle">Zero-Trust Enterprise Agent Pipeline</div>
+      <div class="subtitle">Zero-Trust Enterprise Agent Fleet Perimeter</div>
     </div>
-  </div>
-
-  <div class="nav-tabs">
-    <button class="nav-tab active" id="tab-btn-live" onclick="switchView('live')">🛡️ Live Console</button>
-    <button class="nav-tab" id="tab-btn-obs" onclick="switchView('obs')">📊 Observability & Evals</button>
   </div>
 
   <div class="status-badge">
@@ -358,54 +362,82 @@
   </div>
 
   <div class="stats-deck">
-    <div class="stat-card"><div class="val total" id="s-total">0</div><div class="lbl">Ingested</div></div>
+    <div class="stat-card"><div class="val total" id="s-total">0</div><div class="lbl">Total</div></div>
     <div class="stat-card"><div class="val quarantined" id="s-blocked">0</div><div class="lbl">Quarantined</div></div>
-    <div class="stat-card"><div class="val escalated" id="s-esc">0</div><div class="lbl">Escalated</div></div>
+    <div class="stat-card"><div class="val escalated" id="s-esc">0</div><div class="lbl">Human Review</div></div>
     <div class="stat-card"><div class="val cleared" id="s-clean">0</div><div class="lbl">Cleared</div></div>
   </div>
 </header>
 
-<!-- Live Incident Console View -->
-<main id="view-live">
-
+<main>
   <!-- Top Control Deck -->
   <div class="controls-grid">
-    <!-- Preset Attack Corpus Runner -->
+    <!-- Multi-Source Input Center -->
     <div class="panel-card">
       <div class="panel-title">
-        <span>⚡ Attack Corpus Presets (1-Click)</span>
-        <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">9 Curated Cases</span>
+        <span>🔌 Multi-Source Ingestion & Attack Corpus</span>
+        <span style="font-size: 11px; color: var(--accent-cyan);" id="source-indicator">1-Click Presets</span>
       </div>
-      <div class="preset-list" id="preset-list">
-        <div class="preset-desc" style="padding: 1rem; text-align: center;">Loading attack corpus...</div>
+
+      <div class="source-tabs">
+        <button class="tab-btn active" onclick="switchTab('presets')">⚡ Attack Corpus</button>
+        <button class="tab-btn" onclick="switchTab('upload')">📂 Upload File</button>
+        <button class="tab-btn" onclick="switchTab('feeds')">📡 Live Feeds</button>
+      </div>
+
+      <!-- Tab 1: Presets -->
+      <div class="tab-content active" id="tab-presets">
+        <div class="preset-list" id="preset-list">
+          <div class="preset-desc" style="padding: 1rem; text-align: center;">Loading attack corpus...</div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Upload File -->
+      <div class="tab-content" id="tab-upload">
+        <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+          <div class="upload-icon">📄</div>
+          <div class="upload-text">Drop Incident Report / Security Payload File Here</div>
+          <div class="upload-sub">Supports .txt, .log, .eml, .json, .csv files</div>
+          <input type="file" id="file-input" style="display:none" onchange="handleFileUpload(event)">
+        </div>
+      </div>
+
+      <!-- Tab 3: Feeds -->
+      <div class="tab-content" id="tab-feeds">
+        <div style="display:flex; flex-direction:column; gap:0.75rem; padding:0.5rem 0;">
+          <button class="btn btn-secondary" id="btn-replay" onclick="toggleSource('replay')">Start Replay Traffic Stream</button>
+          <button class="btn btn-secondary" id="btn-gmail" onclick="handleGmailClick()">Start Monitored Gmail Inbox Watch</button>
+        </div>
       </div>
     </div>
 
     <!-- Custom Payload Submitter -->
     <div class="panel-card" id="submitter-card">
       <div class="panel-title">
-        <span>🛡️ Payload Tester & Armor Toggle</span>
+        <span>🛡️ Payload Tester & Armor Guardrail</span>
         <span style="font-size: 11px; color: var(--accent-green);" id="armor-status-badge">ARMORED (ACTIVE)</span>
       </div>
 
       <form id="ingest-form" onsubmit="submitCustomPayload(event)">
         <div class="form-row">
           <div class="form-group">
-            <label>Channel</label>
+            <label>Channel Source</label>
             <select id="input-channel">
-              <option value="ticket">ticket (Helpdesk)</option>
-              <option value="email">email (Inbox)</option>
-              <option value="scraped_page">scraped_page (Web Log)</option>
+              <option value="ticket">ticket (Helpdesk Ticket)</option>
+              <option value="email">email (Monitored Inbox)</option>
+              <option value="scraped_page">scraped_page (Scraped Web Log)</option>
+              <option value="file_upload">file_upload (Uploaded Document)</option>
+              <option value="c2_alert">c2_alert (C2 Threat Intel)</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Sender</label>
+            <label>Sender / Source Identity</label>
             <input type="text" id="input-sender" value="vendor-updates@supplyco-notifications.com" required>
           </div>
         </div>
 
         <div class="form-group">
-          <label>Raw Payload Content</label>
+          <label>Payload Content</label>
           <textarea id="input-text" required placeholder="Type custom security report or injection attack payload here..."></textarea>
         </div>
 
@@ -428,124 +460,25 @@
     </div>
   </div>
 
-  <!-- Stream Controls & Live Stream -->
+  <!-- Stream Controls & Filter Bar -->
   <div class="stream-bar">
     <div class="stream-title">
-      <span>📡 Live Incident Stream & Telemetry</span>
+      <span>📡 Live Incident Stream Telemetry</span>
     </div>
-    <div class="button-group">
-      <button class="btn btn-secondary" id="btn-replay" onclick="toggleSource('replay')">Start Replay Feed</button>
-      <button class="btn btn-secondary" id="btn-gmail" onclick="handleGmailClick()">Start Monitored Inbox Watch</button>
+    <div class="stream-filters">
+      <button class="filter-btn active" onclick="setFilter('all')">ALL</button>
+      <button class="filter-btn" onclick="setFilter('quarantined')">🛡️ QUARANTINED (BAD)</button>
+      <button class="filter-btn" onclick="setFilter('closed')">✅ CLEARED (GOOD)</button>
+      <button class="filter-btn" onclick="setFilter('escalated')">👨‍💻 HUMAN REVIEW QUEUE</button>
     </div>
   </div>
 
   <div class="cases-list" id="cases-container">
     <div class="empty-state" id="empty-state">
-      Waiting for incident telemetry. Run an Attack Preset above, submit a Custom Payload, or Start the Replay Feed.
-    </div>
-</main>
-
-<!-- Admin Observability & Evals View -->
-<main id="view-obs" hidden>
-  <!-- KPI Metrics Deck -->
-  <div class="obs-kpi-grid">
-    <div class="obs-kpi-card">
-      <div class="val total" id="obs-kpi-total">0</div>
-      <div class="lbl">Total Processed Cases</div>
-    </div>
-    <div class="obs-kpi-card">
-      <div class="val" style="color:var(--accent-cyan);" id="obs-kpi-latency">0 ms</div>
-      <div class="lbl">Avg Pipeline Latency</div>
-    </div>
-    <div class="obs-kpi-card">
-      <div class="val" style="color:var(--accent-red);" id="obs-kpi-block-rate">0%</div>
-      <div class="lbl">Model Armor Block Rate</div>
-    </div>
-    <div class="obs-kpi-card">
-      <div class="val" style="color:var(--accent-green);" id="obs-kpi-accuracy">100%</div>
-      <div class="lbl">Evals Accuracy Score</div>
-    </div>
-  </div>
-
-  <!-- Agent Benchmark Evals Panel -->
-  <div class="panel-card" style="margin-bottom: 1.5rem;">
-    <div class="panel-title">
-      <span>🧪 Agent Benchmark Evals Suite (Ground Truth Regression)</span>
-      <button class="btn btn-primary" id="btn-run-evals" onclick="runBenchmarkEvals()">
-        <span>Run Benchmark Suite (9 Cases)</span>
-      </button>
-    </div>
-    <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 1rem;" id="evals-summary-text">
-      Executes all 9 attack corpus payloads (including Base64/Hex evasion variants) and measures screening accuracy & triage degradation.
-    </div>
-
-    <div class="evals-table-container">
-      <table class="evals-table">
-        <thead>
-          <tr>
-            <th>Case Label</th>
-            <th>Channel</th>
-            <th>Expected Verdict</th>
-            <th>Actual Verdict</th>
-            <th>Threat Type</th>
-            <th>Latency</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="evals-table-body">
-          <tr>
-            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
-              No evaluation run recorded yet. Click "Run Benchmark Suite" above to evaluate.
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Pipeline Hop Latency Breakdown Visualizer -->
-  <div class="panel-card">
-    <div class="panel-title">
-      <span>⚡ Average Latency per Pipeline Hop (ms)</span>
-    </div>
-    <div id="hop-latency-bars" style="display: flex; flex-direction: column; gap: 0.75rem; padding: 0.5rem 0;">
-      <div class="waterfall-row">
-        <span class="waterfall-label">1. Ingestion</span>
-        <div class="waterfall-track"><div class="waterfall-bar" id="bar-ingestion" style="width: 5%;">0 ms</div></div>
-      </div>
-      <div class="waterfall-row">
-        <span class="waterfall-label">2. Model Armor</span>
-        <div class="waterfall-track"><div class="waterfall-bar" id="bar-model_armor" style="width: 15%;">0 ms</div></div>
-      </div>
-      <div class="waterfall-row">
-        <span class="waterfall-label">3. Triage (Gemini 3.5)</span>
-        <div class="waterfall-track"><div class="waterfall-bar" id="bar-triage" style="width: 60%;">0 ms</div></div>
-      </div>
-      <div class="waterfall-row">
-        <span class="waterfall-label">4. Gateway Action</span>
-        <div class="waterfall-track"><div class="waterfall-bar" id="bar-action" style="width: 10%;">0 ms</div></div>
-      </div>
-      <div class="waterfall-row">
-        <span class="waterfall-label">5. Memory Bank</span>
-        <div class="waterfall-track"><div class="waterfall-bar" id="bar-memory_bank" style="width: 10%;">0 ms</div></div>
-      </div>
+      Waiting for incident telemetry. Run an Attack Preset above, drop a File, or Start the Replay Feed.
     </div>
   </div>
 </main>
-
-<!-- OpenTelemetry Trace Waterfall Modal -->
-<div class="modal-overlay" id="waterfall-modal">
-  <div class="modal-card wide">
-    <div class="modal-title">
-      <span>🔍 OpenTelemetry Trace Waterfall Timeline</span>
-      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeWaterfallModal()">✕</button>
-    </div>
-    <div class="modal-body" id="waterfall-modal-body">
-      Loading OpenTelemetry trace spans...
-    </div>
-  </div>
-</div>
-
 
 <!-- Gmail Setup Info Modal -->
 <div class="modal-overlay" id="gmail-modal">
@@ -560,7 +493,7 @@
       <span class="modal-code">python -m soc_agent.scripts.gmail_auth</span>
       Set <code style="color:var(--accent-cyan)">GMAIL_CLIENT_ID</code>, <code style="color:var(--accent-cyan)">GMAIL_CLIENT_SECRET</code>, and <code style="color:var(--accent-cyan)">GMAIL_REFRESH_TOKEN</code> in your environment.
       <br><br>
-      For instant continuous live incident streaming without OAuth setup, use the <strong>Replay Feed</strong> below!
+      For instant continuous live incident streaming without OAuth setup, use the <strong>Replay Feed</strong>!
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeGmailModal()">Close</button>
@@ -577,6 +510,7 @@ const casesMap = new Map();
 const stats = { total: 0, blocked: 0, esc: 0, clean: 0 };
 let corpusData = [];
 let isGmailConfigured = false;
+let currentFilter = 'all';
 
 function escapeHtml(str) {
   return String(str == null ? "" : str).replace(/[&<>"']/g, c => ({
@@ -606,6 +540,35 @@ function updateToggleUI() {
   }
 }
 
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  
+  event.target.classList.add('active');
+  document.getElementById(`tab-${tabId}`).classList.add('active');
+  document.getElementById('source-indicator').textContent = tabId.toUpperCase();
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  casesMap.forEach((rec) => {
+    if (filter === 'all') {
+      rec.el.style.display = 'block';
+    } else if (filter === 'quarantined' && rec.el.classList.contains('quarantined')) {
+      rec.el.style.display = 'block';
+    } else if (filter === 'closed' && rec.el.classList.contains('closed')) {
+      rec.el.style.display = 'block';
+    } else if (filter === 'escalated' && rec.el.classList.contains('escalated')) {
+      rec.el.style.display = 'block';
+    } else {
+      rec.el.style.display = 'none';
+    }
+  });
+}
+
 // Load Corpus Presets
 async function loadCorpus() {
   try {
@@ -624,7 +587,7 @@ async function loadCorpus() {
           <span class="preset-desc">${escapeHtml(item.description)}</span>
         </div>
         <span class="preset-tag ${isBlocked ? 'tag-blocked' : 'tag-clean'}">
-          ${isBlocked ? 'BLOCKED' : 'CLEAN'}
+          ${isBlocked ? 'BAD (BLOCKED)' : 'GOOD (CLEAN)'}
         </span>
       `;
       el.addEventListener("click", () => selectPreset(item));
@@ -640,10 +603,25 @@ function selectPreset(item) {
   document.getElementById("input-sender").value = item.sender || "";
   document.getElementById("input-text").value = item.raw_text || "";
   
-  // Highlight submit button to show preset is loaded
   const submitBtn = document.getElementById("submit-btn");
   submitBtn.style.transform = "scale(1.02)";
   setTimeout(() => { submitBtn.style.transform = "none"; }, 300);
+}
+
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (evt) => {
+    const text = evt.target.result;
+    document.getElementById("input-channel").value = "file_upload";
+    document.getElementById("input-sender").value = `upload:${file.name}`;
+    document.getElementById("input-text").value = text;
+    
+    // Auto-run pipeline for file upload
+    submitCustomPayload(new Event('submit'));
+  };
+  reader.readAsText(file);
 }
 
 async function submitCustomPayload(e) {
@@ -699,13 +677,22 @@ function getOrCreateCaseCard(caseId) {
       <span class="degraded-pill" hidden>HEURISTIC FALLBACK</span>
       <span class="verdict-badge"></span>
     </div>
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:0.6rem;">
-      <div class="trace-toggle" onclick="toggleTraceDrawer('${escapeHtml(caseId)}')">
-        <span>▸ Reasoning Telemetry & Memory Bank Recall</span>
+    
+    <!-- Human in the loop review box -->
+    <div class="hitl-box" style="display:none;">
+      <div class="hitl-head">
+        <span>👨‍💻 HUMAN SOC ANALYST TRIAGE REVIEW REQUIRED</span>
+        <span style="font-size:10px; font-weight:normal;">Policy Gatekeeper</span>
       </div>
-      <button class="btn btn-secondary" style="padding:0.2rem 0.6rem; font-size:11px; font-family:var(--font-mono);" onclick="showWaterfallModal('${escapeHtml(caseId)}')">
-        🔍 OTel Waterfall
-      </button>
+      <div class="hitl-actions">
+        <button class="btn btn-success" onclick="reviewCase('${escapeHtml(caseId)}', 'approve')">🟢 Approve Escalation</button>
+        <button class="btn btn-danger" onclick="reviewCase('${escapeHtml(caseId)}', 'quarantine')">🔴 Force Quarantine</button>
+        <button class="btn btn-secondary" onclick="reviewCase('${escapeHtml(caseId)}', 'close')">⚪ Dismiss / Close Case</button>
+      </div>
+    </div>
+
+    <div class="trace-toggle" onclick="toggleTraceDrawer('${escapeHtml(caseId)}')">
+      <span>▸ Reasoning Telemetry & Memory Bank Recall</span>
     </div>
     <div class="trace-drawer" id="drawer-${escapeHtml(caseId)}"></div>
   `;
@@ -718,6 +705,24 @@ function getOrCreateCaseCard(caseId) {
   updateStatsUI();
   while (container.children.length > 50) container.lastElementChild.remove();
   return rec;
+}
+
+async function reviewCase(caseId, decision) {
+  try {
+    const res = await fetch(`/cases/${caseId}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, analyst_notes: `Analyst action: ${decision}` })
+    });
+    if (res.ok) {
+      const rec = casesMap.get(caseId);
+      if (rec) {
+        rec.el.querySelector(".hitl-box").style.display = "none";
+      }
+    }
+  } catch (err) {
+    alert("Review error: " + err);
+  }
 }
 
 function toggleTraceDrawer(caseId) {
@@ -769,6 +774,8 @@ function handleCaseComplete(ev) {
       .forEach(b => { if (!rec.doneHops.has(b.dataset.stage)) b.classList.add("skipped"); });
   } else if (outcomeClass === "escalated") {
     stats.esc++;
+    // Show Human in the loop review box for escalated high/critical cases
+    rec.el.querySelector(".hitl-box").style.display = "flex";
   } else {
     stats.clean++;
   }
@@ -784,6 +791,9 @@ function handleCaseComplete(ev) {
   verdictEl.textContent = isQuarantined
     ? `QUARANTINED · ${(ev.armor_threat_type || "THREAT").toUpperCase()}`
     : `${outcomeClass.toUpperCase()} · ${(ev.severity || "").toUpperCase()}`;
+
+  // Apply current filter view
+  if (currentFilter !== 'all') setFilter(currentFilter);
 }
 
 const EVENT_HANDLERS = {
@@ -799,7 +809,7 @@ function connectSSE() {
   const src = new EventSource("/live/stream");
   src.onopen = () => {
     dot.className = "pulse-dot online";
-    connText.textContent = "Live Stream Active";
+    connText.textContent = "Live Telemetry Connected";
   };
   src.onerror = () => {
     dot.className = "pulse-dot offline";
@@ -819,8 +829,9 @@ const sourceState = { gmail: false, replay: false };
 
 function updateSourceBtn(src) {
   const btn = document.getElementById(`btn-${src}`);
+  if (!btn) return;
   const isRunning = sourceState[src];
-  btn.textContent = (isRunning ? "Stop " : "Start ") + (src === "gmail" ? "Monitored Inbox Watch" : "Replay Feed");
+  btn.textContent = (isRunning ? "Stop " : "Start ") + (src === "gmail" ? "Monitored Gmail Inbox Watch" : "Replay Traffic Stream");
   btn.style.borderColor = isRunning ? "var(--accent-green)" : "";
   btn.style.color = isRunning ? "var(--accent-green)" : "";
 }
@@ -870,165 +881,24 @@ async function fetchSourceStatuses() {
   } catch (e) {}
 }
 
-function switchView(view) {
-  const liveView = document.getElementById("view-live");
-  const obsView = document.getElementById("view-obs");
-  const liveBtn = document.getElementById("tab-btn-live");
-  const obsBtn = document.getElementById("tab-btn-obs");
-
-  if (view === "obs") {
-    liveView.hidden = true;
-    obsView.hidden = false;
-    liveBtn.classList.remove("active");
-    obsBtn.classList.add("active");
-    fetchTelemetrySummary();
-    fetchEvalHistory();
-  } else {
-    liveView.hidden = false;
-    obsView.hidden = true;
-    liveBtn.classList.add("active");
-    obsBtn.classList.remove("active");
+// Drag & drop file handlers
+const dropZone = document.getElementById('drop-zone');
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  dropZone?.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+});
+['dragenter', 'dragover'].forEach(eventName => {
+  dropZone?.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+});
+['dragleave', 'drop'].forEach(eventName => {
+  dropZone?.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+});
+dropZone?.addEventListener('drop', (e) => {
+  const files = e.dataTransfer.files;
+  if (files.length) {
+    document.getElementById('file-input').files = files;
+    handleFileUpload({ target: { files } });
   }
-}
-
-async function fetchTelemetrySummary() {
-  try {
-    const res = await fetch("/api/admin/metrics");
-    if (!res.ok) return;
-    const data = await res.json();
-    document.getElementById("obs-kpi-total").textContent = data.total_cases || 0;
-    document.getElementById("obs-kpi-latency").textContent = (data.avg_latency_ms || 0) + " ms";
-    document.getElementById("obs-kpi-block-rate").textContent = (data.armor_block_rate || 0) + "%";
-
-    // Update hop latency bars
-    const latencies = data.avg_hop_latencies_ms || {};
-    const maxLat = Math.max(...Object.values(latencies), 1.0);
-    for (const [hop, ms] of Object.entries(latencies)) {
-      const bar = document.getElementById(`bar-${hop}`);
-      if (bar) {
-        const pct = Math.max(5, Math.min(100, Math.round((ms / maxLat) * 100)));
-        bar.style.width = pct + "%";
-        bar.textContent = ms + " ms";
-      }
-    }
-  } catch (err) {
-    console.error("Telemetry summary fetch error:", err);
-  }
-}
-
-async function runBenchmarkEvals() {
-  const btn = document.getElementById("btn-run-evals");
-  btn.disabled = true;
-  btn.textContent = "Executing Evals (9 Cases)...";
-
-  try {
-    const res = await fetch("/api/admin/evals/run", { method: "POST" });
-    if (!res.ok) {
-      alert("Failed to execute benchmark evals.");
-      return;
-    }
-    const data = await res.json();
-    renderEvalRun(data);
-    fetchTelemetrySummary();
-  } catch (err) {
-    alert("Network error running evals: " + err);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Run Benchmark Suite (9 Cases)";
-  }
-}
-
-function renderEvalRun(run) {
-  document.getElementById("obs-kpi-accuracy").textContent = run.accuracy_percent + "%";
-  const tbody = document.getElementById("evals-table-body");
-  tbody.innerHTML = "";
-
-  (run.case_results || []).forEach((c) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><strong>${escapeHtml(c.label)}</strong></td>
-      <td>${escapeHtml(c.source_channel)}</td>
-      <td><code>${escapeHtml(c.expected_verdict)}</code></td>
-      <td><code>${escapeHtml(c.actual_verdict)}</code></td>
-      <td>${escapeHtml(c.actual_threat_type || "none")}</td>
-      <td>${c.latency_ms} ms</td>
-      <td>
-        <span class="${c.passed ? 'pass-badge' : 'fail-badge'}">
-          ${c.passed ? 'PASS' : 'FAIL'}
-        </span>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  const text = document.getElementById("evals-summary-text");
-  text.innerHTML = `Last run <strong>${escapeHtml(run.run_id)}</strong>: ` +
-    `Passed <strong>${run.passed_cases}/${run.total_cases}</strong> cases ` +
-    `(${run.accuracy_percent}% accuracy) in ${run.avg_latency_ms} ms avg.`;
-}
-
-async function fetchEvalHistory() {
-  try {
-    const res = await fetch("/api/admin/evals/history");
-    if (!res.ok) return;
-    const history = await res.json();
-    if (history && history.length > 0) {
-      renderEvalRun(history[0]);
-    }
-  } catch (err) {
-    console.error("Eval history fetch error:", err);
-  }
-}
-
-async function showWaterfallModal(caseId) {
-  const modal = document.getElementById("waterfall-modal");
-  const body = document.getElementById("waterfall-modal-body");
-  modal.classList.add("active");
-  body.innerHTML = "<p style='color:var(--text-muted)'>Loading OpenTelemetry trace spans...</p>";
-
-  try {
-    const res = await fetch(`/api/admin/traces/${caseId}/waterfall`);
-    const data = await res.json();
-    const spans = data.spans || [];
-    if (spans.length === 0) {
-      body.innerHTML = `<p style='color:var(--text-muted)'>No OTel trace spans recorded for case ${escapeHtml(caseId)}.</p>`;
-      return;
-    }
-
-    const minT = Math.min(...spans.map((s) => s.start_time));
-    const maxT = Math.max(...spans.map((s) => s.end_time));
-    const totalMs = Math.max((maxT - minT) * 1000, 1.0);
-
-    let html = `<div style="font-family:var(--font-mono); font-size:12px; margin-bottom:1rem;">` +
-      `<strong>Case ID:</strong> ${escapeHtml(caseId)} | <strong>Total Trace Duration:</strong> ${totalMs.toFixed(2)} ms` +
-      `</div><div style="display:flex; flex-direction:column; gap:0.5rem;">`;
-
-    spans.forEach((s) => {
-      const offsetPct = Math.max(0, Math.min(100, ((s.start_time - minT) * 1000 / totalMs) * 100));
-      const widthPct = Math.max(2, Math.min(100 - offsetPct, (s.duration_ms / totalMs) * 100));
-
-      html += `
-        <div class="waterfall-row">
-          <span class="waterfall-label">${escapeHtml(s.name)}</span>
-          <div class="waterfall-track">
-            <div class="waterfall-bar" style="left:${offsetPct.toFixed(1)}%; width:${widthPct.toFixed(1)}%;">
-              ${s.duration_ms} ms
-            </div>
-          </div>
-        </div>
-      `;
-    });
-
-    html += `</div>`;
-    body.innerHTML = html;
-  } catch (err) {
-    body.innerHTML = `<p style='color:var(--accent-red)'>Error loading trace spans: ${err}</p>`;
-  }
-}
-
-function closeWaterfallModal() {
-  document.getElementById("waterfall-modal").classList.remove("active");
-}
+}, false);
 
 document.addEventListener("DOMContentLoaded", () => {
   loadCorpus();
@@ -1038,4 +908,3 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 </body>
 </html>
-
