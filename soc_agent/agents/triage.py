@@ -91,7 +91,12 @@ def triage(
 ) -> TriageResult:
     bank = memory_bank.get_memory_bank()
     domain = _sender_domain(sender)
-    memories = bank.query_by_subject(scope="triage-agent", subject_key=domain)
+    try:
+        memories = bank.query_by_subject(scope="triage-agent", subject_key=domain)
+    except Exception as e:
+        memories = []
+        tr.log("triage", f"Memory Bank query bypassed: {e}")
+
     memory_context = (
         "\n".join(f"- {m['content']}" for m in memories) if memories else "(none)"
     )
@@ -108,6 +113,7 @@ def triage(
     else:
         llm_used = False
         tr.log("triage", "DEGRADED: no LLM configured, using keyword heuristic")
+
         severity, category, reasoning = _fallback_classify(screened_content)
 
     similar_case_ids = [m["case_ref"] for m in memories]
