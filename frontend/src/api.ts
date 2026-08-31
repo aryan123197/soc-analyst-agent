@@ -67,3 +67,17 @@ export async function encodeRedTeam(
   );
 }
 
+export async function sendWebhook(
+  source: string,
+  payload: Record<string, unknown>
+): Promise<{ status: string; case_id: string; update: unknown }> {
+  return asJson(
+    await fetch(`/api/v1/webhooks/${source}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  );
+}
+
+
