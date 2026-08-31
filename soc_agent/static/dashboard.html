@@ -1285,11 +1285,33 @@ function handleCaseComplete(ev) {
   if (currentFilter !== 'all') setFilter(currentFilter);
 }
 
+function handleWebhookReceived(ev) {
+  const rec = getOrCreateCaseCard(ev.case_id);
+  const drawer = rec.el.querySelector(".trace-drawer");
+  if (!drawer) return;
+
+  const whBox = document.createElement("div");
+  whBox.className = "memory-callout-box";
+  whBox.style.borderColor = "var(--accent-cyan)";
+  whBox.innerHTML = `
+    <div class="memory-callout-title" style="color:var(--accent-cyan);">
+      <span>📌 INBOUND ITSM WEBHOOK SYNC: ${(ev.source || "").toUpperCase()}</span>
+    </div>
+    <div class="memory-callout-detail">
+      <strong>Status:</strong> ${escapeHtml(ev.external_status || "updated")}<br/>
+      ${ev.analyst_notes ? `<strong>Notes:</strong> ${escapeHtml(ev.analyst_notes)}` : ''}
+    </div>
+  `;
+  drawer.appendChild(whBox);
+}
+
 const EVENT_HANDLERS = {
   case_start: handleCaseStart,
   hop: handleHop,
-  case_complete: handleCaseComplete
+  case_complete: handleCaseComplete,
+  webhook_received: handleWebhookReceived
 };
+
 
 function connectSSE() {
   const dot = document.getElementById("dot");
