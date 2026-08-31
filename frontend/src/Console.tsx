@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { encodeRedTeam, fetchCorpus, postIngest } from "./api";
+import { encodeRedTeam, fetchCorpus, postIngest, sendWebhook } from "./api";
 import { Stages, TraceSteps } from "./Stages";
 import type { CorpusCase, IngestResult } from "./types";
 
@@ -70,6 +70,46 @@ export function Console() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function handleSimulateWebhook(caseId: string, source: "jira" | "servicenow") {
+    try {
+      let payload: Record<string, unknown> = {};
+      if (source === "jira") {
+        payload = {
+          case_id: caseId,
+          issue: { fields: { summary: `Update for ${caseId}`, status: { name: "In Progress" } } },
+          comment: { body: "Jira analyst verified IOC hashes and initiated host isolation." },
+        };
+      } else {
+        payload = {
+          correlation_id: caseId,
+          state: "Resolved",
+          work_notes: "ServiceNow incident resolved. Threat mitigated.",
+        };
+      }
+      await sendWebhook(source, payload);
+      setRuns((prev) =>
+        prev.map((r) => {
+          if (r.res.case_id === caseId) {
+            return {
+              ...r,
+              res: {
+                ...r.res,
+                external_status: source === "jira" ? "In Progress" : "Resolved",
+                external_notes:
+                  source === "jira"
+                    ? "Jira analyst verified IOC hashes and initiated host isolation."
+                    : "ServiceNow incident resolved. Threat mitigated.",
+              },
+            };
+          }
+          return r;
+        })
+      );
+    } catch (e: unknown) {
+      setError("Webhook error: " + String(e));
     }
   }
 
@@ -214,6 +254,22 @@ export function Console() {
                   </span>
                 </div>
                 <Stages res={r.res} armorAtRun={r.armorAtRun} />
+                {r.res.status === "actioned" && (
+                  <div style={{ margin: "10px 0", display: "flex", gap: 8 }}>
+                    <button
+                      style={{ fontSize: 11, padding: "4px 10px" }}
+                      onClick={() => handleSimulateWebhook(r.res.case_id, "jira")}
+                    >
+                      📥 Simulate Jira Webhook (In Progress)
+                    </button>
+                    <button
+                      style={{ fontSize: 11, padding: "4px 10px" }}
+                      onClick={() => handleSimulateWebhook(r.res.case_id, "servicenow")}
+                    >
+                      📥 Simulate ServiceNow Webhook (Resolved)
+                    </button>
+                  </div>
+                )}
                 <div className="panel">
                   <h2>Reasoning trace</h2>
                   <TraceSteps res={r.res} />
@@ -226,3 +282,4 @@ export function Console() {
     </div>
   );
 }
+

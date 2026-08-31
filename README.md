@@ -16,61 +16,81 @@ The **SOC Analyst Agent** establishes a production-grade, zero-trust security pi
 - **Gemini 3.5 Flash** for intelligent incident severity triage.
 - **Gemini Enterprise Agent Platform (GEAP) Memory Bank** for domain-scoped context recall and **Multi-Stage Cross-Ticket Campaign Correlation**.
 - **Deterministic Agent Gateway Policy Choke Point** enforcing read-only ingestion isolation and identity authority.
+- **Enterprise SIEM & ITSM Connectors** featuring outbound dispatchers for **Jira Service Desk REST API**, **ServiceNow Incident API**, and **Splunk HEC (HTTP Event Collector)**.
+- **Inbound Webhook Synchronization** (`/api/v1/webhooks/jira`, `/api/v1/webhooks/servicenow`, `/api/v1/webhooks/{source}`) reconciling analyst updates into Cloud Firestore.
 - **Immutable SHA-256 Cryptographic Audit Certificates** (SOC 2 / ISO 27001 legal auditing).
-- **Inbound SIEM & ITSM Webhook Synchronization** (Jira Service Desk, ServiceNow).
 
 ---
 
-## 2. System Architecture
+## 2. System Architecture & Component Interaction
+
+The diagram below details how the **React Web Console / Dashboard Frontend** communicates with the **FastAPI Backend**, **Vertex AI Model Armor**, **Google Cloud Web Risk API**, **Gemini 3.5 Flash**, **GEAP Memory Bank**, **Cloud Firestore**, and **Enterprise Connectors**:
 
 ```mermaid
 flowchart TD
-    subgraph Untrusted Ingestion
-        A1[Monitored Emails]
-        A2[Jira / ServiceNow Webhooks]
-        A3[Scraped Web Logs]
+    subgraph Client Layer
+        UI[Cyber SOC Web Console\nReact / Tailwind / SSE Dashboard]
+        INBOUND_WH[Inbound ITSM Webhooks\nJira / ServiceNow Analyst Sync]
     end
 
-    subgraph Stage 1: Isolated Ingestion
-        B[Ingestion Agent\nRead-Only Sandbox]
-        B1[IOC Extractor\nIPs / Hashes / URLs]
-        B2[Google Cloud Web Risk API]
+    subgraph FastAPI Backend & Routing
+        API[FastAPI Gateway Engine\nsoc_agent/server.py]
+        SSE[Server-Sent Events Stream\n/live/stream Real-Time Feed]
     end
 
-    subgraph Stage 2: Vertex AI Model Armor
-        C{Model Armor Guardrail\n+ Decode-and-Rescan}
-        C1[Quarantine Edge Containment]
+    subgraph Stage 1: Isolated Ingestion & Threat Intel
+        ING[Ingestion Sandbox\nRead-Only Agent Isolation]
+        IOC[IOC Extraction Engine\nIPs / Hashes / URLs]
+        WEBRISK[Google Cloud Web Risk API\nwebrisk.googleapis.com]
+    end
+
+    subgraph Stage 2: Vertex AI Model Armor Guardrail
+        ARMOR{Vertex AI Model Armor\nsoc-analyst-armor-template}
+        DECODE[Pre-Screening Engine\nBase64 / Hex / URL Decode-and-Rescan]
+        QUARANTINE[Quarantine Edge Containment\nBlocked Threat Isolated]
     end
 
     subgraph Stage 3: Gemini 3.5 & GEAP Memory Bank
-        D[Triage Agent\nGemini 3.5 Flash]
-        E[(GEAP Memory Bank)]
-        E1[Cross-Ticket Campaign\nCorrelation Engine]
+        GEMINI[Triage Agent\nGemini 3.5 Flash]
+        MEMORY[(GEAP Memory Bank\nReasoning Engine ID 5030737937319329792)]
+        CAMPAIGN[Cross-Ticket Campaign\nCorrelation Engine]
     end
 
-    subgraph Stage 4: Agent Gateway Choke Point
-        F{Deterministic Policy Gateway}
-        F1[Human Analyst Review Queue]
+    subgraph Stage 4: Agent Gateway & Connectors
+        GATEWAY{Agent Gateway Policy Choke Point\nIdentity: action-agent}
+        HITL[Human SOC Analyst Review Queue\nApprove / Quarantine / Close]
+        JIRA[Jira Service Desk REST API]
+        SNOW[ServiceNow Incident API]
+        SPLUNK[Splunk HEC Collector]
     end
 
-    subgraph Stage 5: Enterprise Persistence & Audit
-        G1[Cloud Firestore Cases]
-        G2[Cryptographic Audit Trail\nSHA-256 Merkle Chain]
+    subgraph Stage 5: Persistence & Audit Layer
+        STORE[(Cloud Firestore Database\ncases/{caseId} & traces/{caseId})]
+        AUDIT[Immutable Audit Trail Engine\nSHA-256 Merkle Hash Chain]
     end
 
-    A1 --> B
-    A2 --> B
-    A3 --> B
-    B --> B1 --> B2
-    B --> C
-    C -- "BLOCKED" --> C1
-    C -- "CLEAN" --> D
-    B2 --> D
-    E <--> E1 <--> D
-    D --> F
-    F -- "Escalated / Critical" --> F1
-    F -- "Action Authorized" --> G1
-    F --> G2
+    UI -->|POST /ingest| API
+    INBOUND_WH -->|POST /api/v1/webhooks/*| API
+    API -->|Subscribe| SSE -->|Real-Time Hop Telemetry| UI
+    
+    API --> ING --> IOC --> WEBRISK
+    ING --> DECODE --> ARMOR
+    
+    ARMOR -- "VERDICT: BLOCKED" --> QUARANTINE --> STORE
+    ARMOR -- "VERDICT: CLEAN" --> GEMINI
+    WEBRISK -->|Phishing / Malware Verdict| GEMINI
+    
+    GEMINI <-->|Domain Context Search| MEMORY
+    GEMINI <-->|Scattered Vector Recall| CAMPAIGN
+    
+    GEMINI -->|Triage Severity| GATEWAY
+    GATEWAY -- "Severity: High / Critical" --> HITL --> UI
+    GATEWAY -- "Action Authorized" --> JIRA
+    GATEWAY -- "Action Authorized" --> SNOW
+    GATEWAY -- "Action Authorized" --> SPLUNK
+    
+    JIRA & SNOW & SPLUNK --> STORE
+    GATEWAY --> AUDIT --> STORE
 ```
 
 ---
@@ -86,12 +106,18 @@ Extracted URLs are screened against Google's global threat database (`webrisk.go
 ### C. Multi-Stage Cross-Ticket Campaign Correlation
 Attackers split prompt injections across separate support tickets (Ticket 1: System prompt override context $\rightarrow$ Ticket 2: Credential dump payload). The pipeline queries GEAP Memory Bank by sender domain, correlates Ticket $N$ with Ticket $N-1$, and escalates multi-stage injection attempts to `CRITICAL` (`multi-stage-campaign`).
 
-### D. Immutable Cryptographic Audit Certificate Engine
+### D. Enterprise SIEM & ITSM Outbound Connectors
+- **Jira Service Desk REST API**: Dispatches incident tickets directly to Jira under project key `JIRA_PROJECT_KEY`.
+- **ServiceNow Incident API**: Creates incidents in ServiceNow with `correlation_id` matching `case_id`, setting impact/urgency.
+- **Splunk HEC (HTTP Event Collector)**: Indexes structured event logs to Splunk HTTP collector endpoints.
+- **Simulation Fallback Mode**: When credentials are unset, connectors generate mock incident keys (`SOC-1042`, `INC001042`), guaranteeing seamless offline demo execution.
+
+### E. Inbound Webhook Status Reconciliation
+Inbound webhooks (`/api/v1/webhooks/jira`, `/api/v1/webhooks/servicenow`, `/api/v1/webhooks/{source}`) capture status transitions (e.g., Jira issue changed to `In Progress` or ServiceNow incident state changed to `Resolved`) and analyst work notes, synchronizing status in Cloud Firestore and publishing SSE stream updates.
+
+### F. Immutable Cryptographic Audit Certificate Engine
 Every processed case generates a tamper-evident SHA-256 Merkle chain audit certificate:
 $$\text{Certificate Hash}_n = \text{SHA256}(\text{Hash}_{n-1} + \text{Case ID} + \text{Verdict} + \text{Actor Identity} + \text{Timestamp})$$
-
-### E. Enterprise Inbound Webhook Synchronization
-Native inbound webhooks (`/api/v1/webhooks/jira`, `/api/v1/webhooks/servicenow`, `/api/v1/webhooks/{source}`) capture analyst comments and status updates from Jira Service Desk and ServiceNow, reconciling status in Cloud Firestore.
 
 ---
 
@@ -99,51 +125,79 @@ Native inbound webhooks (`/api/v1/webhooks/jira`, `/api/v1/webhooks/servicenow`,
 
 | Endpoint | Method | Description |
 | :--- | :---: | :--- |
-| `POST /ingest` | `POST` | Ingests alert through the 4-stage zero-trust pipeline. |
+| `POST /ingest` | `POST` | Ingests alert through the 5-stage zero-trust pipeline. |
 | `GET /corpus` | `GET` | Fetches the 12 curated attack corpus preset cases. |
 | `POST /api/v1/redteam/encode` | `POST` | Red Team Attack Studio payload mutator (Base64, Hex, URL, Ticket wrap). |
 | `GET /api/v1/audit/verify/{case_id}` | `GET` | Cryptographically verifies SHA-256 Merkle audit certificate for a case. |
 | `POST /api/v1/webhooks/jira` | `POST` | Inbound webhook handler for Jira Service Desk analyst updates. |
 | `POST /api/v1/webhooks/servicenow` | `POST` | Inbound webhook handler for ServiceNow incident status updates. |
+| `POST /api/v1/webhooks/{source}` | `POST` | Generic webhook handler for custom SIEM/ITSM tools. |
 | `POST /api/admin/evals/run` | `POST` | Runs benchmark evals suite with LLM-as-a-Judge and payload mutation metrics. |
 | `GET /health` | `GET` | Health check endpoint. |
 
 ---
 
-## 5. Quickstart & Installation
+## 5. Spin-up & Local Reproducibility Guide
+
+Follow these step-by-step instructions to set up and run the project locally.
+
+### Prerequisites
+- **Python**: `3.11` or higher installed
+- **Node.js**: `v18+` (for React frontend build)
+- **Git**: installed
+
+### Step-by-Step Setup
 
 ```bash
-# 1. Clone repository and activate Python 3.11 virtual environment
+# 1. Clone the repository and navigate into the workspace
 git clone https://github.com/aryan123197/soc-analyst-agent.git
 cd soc-analyst-agent
-source venv/bin/activate
 
-# 2. Install dependencies
+# 2. Activate virtual environment and install Python dependencies
+source venv/bin/activate
 pip install -r requirements.txt
 
-# 3. Configure environment variables (.env)
-cp .env.example .env
-# Set GOOGLE_CLOUD_PROJECT=newproject-464521
-# Set GOOGLE_CLOUD_LOCATION=us-central1
-# Set GEMINI_MODEL=gemini-3.5-flash
+# 3. Build the React Frontend static assets
+cd frontend
+npm install
+npm run build
+cd ..
 
-# 4. Run automated test suite (100% passing)
+# 4. Copy environment configuration (.env)
+cp .env.example .env
+
+# 5. Run the complete automated test suite (100% passing)
 pytest tests/ -q
 
-# 5. Launch local server
+# 6. Execute the interactive SIEM/ITSM Connectors Demo Script
+python soc_agent/scripts/demo_connectors.py
+
+# 7. Start the FastAPI backend server with live web UI
 uvicorn soc_agent.server:app --reload --port 8000
 ```
 
-Visit **`http://localhost:8000/`** to view the Web Console!
+Open your browser to **`http://localhost:8000/`** to interact with the Cyber SOC Command Center UI!
 
 ---
 
-## 6. Deployment to Google Cloud Run
+## 6. Cloud Run Deployment Guide
 
-To deploy directly to Google Cloud Run:
+To deploy the application to Google Cloud Run:
 
 ```bash
+# Set Google Cloud Project and deploy using the automated deployment script
+chmod +x deploy.sh
 ./deploy.sh
 ```
 
-The script builds the Docker container via Cloud Build and deploys to Cloud Run in `us-central1` with unauthenticated HTTP access.
+Or deploy directly using the Google Cloud SDK:
+
+```bash
+gcloud run deploy soc-analyst-agent \
+  --source . \
+  --region us-central1 \
+  --platform managed \
+  --allow-unauthenticated \
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=newproject-464521,GOOGLE_CLOUD_LOCATION=us-central1,AGENT_ENGINE_ID=5030737937319329792,MODEL_ARMOR_TEMPLATE_ID=soc-analyst-armor-template"
+```
+

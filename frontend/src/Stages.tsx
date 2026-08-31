@@ -81,25 +81,52 @@ export function Stages({ res, armorAtRun }: { res: IngestResult; armorAtRun: boo
     },
     {
       key: "action",
-      name: "4 · action gateway",
+      name: "4 · action gateway & connectors",
       state: blocked ? "skipped" : "done",
       body: blocked ? (
         "quarantined — no gateway call issued"
       ) : action ? (
-        <Row>
-          <Item k="action" v={<code>{action.type}</code>} />
-          <Item k="identity" v={<code>{action.actor_agent_identity}</code>} />
-          {!armorAtRun && (
-            <Item
-              k="note"
-              v={
-                <span style={{ color: "var(--bad)" }}>
-                  executed on unscreened input
-                </span>
-              }
-            />
+        <div>
+          <Row>
+            <Item k="action" v={<code>{action.type}</code>} />
+            <Item k="identity" v={<code>{action.actor_agent_identity}</code>} />
+            {!armorAtRun && (
+              <Item
+                k="note"
+                v={
+                  <span style={{ color: "var(--bad)" }}>
+                    executed on unscreened input
+                  </span>
+                }
+              />
+            )}
+          </Row>
+
+          {res.integrations && (
+            <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px dashed rgba(255,255,255,0.1)" }}>
+              <div style={{ fontSize: 10, color: "var(--accent-cyan)", fontWeight: 700, marginBottom: 4 }}>
+                🌐 ENTERPRISE SIEM & ITSM CONNECTORS
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {res.integrations.jira && (
+                  <span className="tag clean" style={{ fontSize: 10 }}>
+                    Jira: {res.integrations.jira.issue_key || res.integrations.jira.status}
+                  </span>
+                )}
+                {res.integrations.servicenow && (
+                  <span className="tag clean" style={{ fontSize: 10 }}>
+                    ServiceNow: {res.integrations.servicenow.number || res.integrations.servicenow.status}
+                  </span>
+                )}
+                {res.integrations.splunk && (
+                  <span className="tag clean" style={{ fontSize: 10 }}>
+                    Splunk HEC: {res.integrations.splunk.status}
+                  </span>
+                )}
+              </div>
+            </div>
           )}
-        </Row>
+        </div>
       ) : null,
     },
     {
@@ -135,6 +162,20 @@ export function Stages({ res, armorAtRun }: { res: IngestResult; armorAtRun: boo
         </div>
       ))}
 
+      {res.external_status && (
+        <div style={{ background: "rgba(14, 165, 233, 0.1)", border: "1px solid rgba(14, 165, 233, 0.3)", borderRadius: 8, padding: "0.65rem 0.85rem", marginTop: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#38bdf8" }}>📌 INBOUND ITSM WEBHOOK SYNC</span>
+            <span className="tag clean" style={{ fontSize: 10 }}>{res.external_status}</span>
+          </div>
+          {res.external_notes && (
+            <div style={{ fontSize: 11, color: "#e2e8f0", marginTop: 4 }}>
+              Analyst Update: {res.external_notes}
+            </div>
+          )}
+        </div>
+      )}
+
       {res.audit_certificate && (
         <div style={{ background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: 8, padding: "0.65rem 0.85rem", marginTop: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -148,6 +189,7 @@ export function Stages({ res, armorAtRun }: { res: IngestResult; armorAtRun: boo
       )}
     </div>
   );
+
 
 }
 

@@ -18,7 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir
 
 # Copy application source code and static assets
 COPY soc_agent/ soc_agent/
-COPY local_data/ local_data/
+RUN mkdir -p local_data
+
 
 # Expose server port
 EXPOSE 8080

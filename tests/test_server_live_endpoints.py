@@ -1,12 +1,12 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from fastapi.testclient import TestClient
-
 from soc_agent.server import app
+from soc_agent.services.client_factory import make_test_client
+
+client = make_test_client(app)
 
 
-client = TestClient(app)
 
 
 def test_health():

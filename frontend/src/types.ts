@@ -62,6 +62,31 @@ export interface AuditCertificate {
   verified: boolean;
 }
 
+export interface IntegrationStatus {
+  status: "created" | "indexed" | "simulated" | "failed";
+  issue_key?: string;
+  number?: string;
+  sys_id?: string;
+  url?: string;
+  hec_status?: string;
+  error?: string;
+}
+
+export interface Integrations {
+  jira?: IntegrationStatus;
+  servicenow?: IntegrationStatus;
+  splunk?: IntegrationStatus;
+  dispatched_at?: string;
+}
+
+export interface WebhookUpdate {
+  source: string;
+  external_status: string;
+  analyst_notes?: string | null;
+  received_at: string;
+  payload?: Record<string, unknown>;
+}
+
 export interface IngestResult {
   case_id: string;
   status: "quarantined" | "actioned";
@@ -71,6 +96,10 @@ export interface IngestResult {
   trace: { trace_id: string; case_id: string; steps: TraceStep[] };
   threat_intel?: ThreatIntelReport | null;
   audit_certificate?: AuditCertificate | null;
+  integrations?: Integrations | null;
+  external_status?: string | null;
+  external_notes?: string | null;
+  webhook_history?: WebhookUpdate[];
 }
 
 
@@ -105,4 +134,13 @@ export type LiveEvent =
       severity: Triage["severity"] | null;
       category: string | null;
       action_taken: ActionRecord["type"] | null;
+    }
+  | {
+      type: "webhook_received";
+      timestamp?: string;
+      case_id: string;
+      source: string;
+      external_status: string;
+      analyst_notes?: string | null;
     };
+

@@ -1,13 +1,13 @@
 """Tests for Enterprise SIEM & ITSM Connectors and Inbound Webhooks."""
-from fastapi.testclient import TestClient
-
 from soc_agent.agents import action
 from soc_agent.server import app
 from soc_agent.services import connectors, store, trace
+from soc_agent.services.client_factory import make_test_client
+
 
 
 def test_outbound_connectors_simulation():
-    tr = trace.Trace(case_id="case_test_sim_123")
+    tr = trace.new_trace(case_id="case_test_sim_123")
     res = connectors.dispatch_outbound_integrations(
         case_id="case_test_sim_123",
         severity="high",
@@ -34,8 +34,9 @@ def test_action_agent_integrations_dispatch():
     }
     case_store.create_case(c)
 
-    tr = trace.Trace(case_id=case_id)
+    tr = trace.new_trace(case_id=case_id)
     rec = action.act(case_id=case_id, severity="critical", tr=tr)
+
 
     assert rec.type == "escalated"
     updated_case = case_store.get_case(case_id)
@@ -47,7 +48,9 @@ def test_action_agent_integrations_dispatch():
 
 
 def test_inbound_webhooks():
-    client = TestClient(app)
+    client = make_test_client(app)
+
+
     case_store = store.get_case_store()
 
     # Create a test case
