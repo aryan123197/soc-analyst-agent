@@ -15,16 +15,20 @@ from pathlib import Path
 
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from soc_agent.corpus.attack_cases import CASES
 from soc_agent.pipeline import run_pipeline
-from soc_agent.services import events
+from soc_agent.services import evals, events, store, telemetry
 from soc_agent.services import trace as trace_service
 from soc_agent.sources import gmail, replay
 
+
 app = FastAPI(title="SOC Analyst Agent")
+FastAPIInstrumentor.instrument_app(app)
+
 
 _DASHBOARD_HTML = Path(__file__).resolve().parent / "static" / "dashboard.html"
 
@@ -131,9 +135,47 @@ def ingest(req: IngestRequest):
 @app.get("/", response_class=HTMLResponse)
 @app.get("/ui", response_class=HTMLResponse)
 @app.get("/live", response_class=HTMLResponse)
+@app.get("/admin", response_class=HTMLResponse)
 def live_dashboard():
-    """Real-time SOC console — renders cases as the pipeline processes them."""
+    """Real-time SOC console and Admin Observability / Evals Dashboard."""
     return _DASHBOARD_HTML.read_text()
+
+
+# -----------------------------------------------------------------------------
+# Observability & Admin API Endpoints
+# -----------------------------------------------------------------------------
+
+@app.get("/metrics")
+def prometheus_metrics():
+    """Prometheus exposition format endpoint."""
+    return Response(content=telemetry.get_prometheus_metrics_bytes(), media_type="text/plain; version=0.0.4")
+
+
+@app.get("/api/admin/metrics")
+def admin_metrics_summary():
+    """Returns aggregate pipeline telemetry summary for the Admin Dashboard."""
+    return telemetry.get_telemetry_summary()
+
+
+@app.post("/api/admin/evals/run")
+def trigger_benchmark_evals():
+    """Runs pipeline benchmark evaluations against the 9 attack corpus cases."""
+    eval_run = evals.run_benchmark_evals()
+    return eval_run.to_dict()
+
+
+@app.get("/api/admin/evals/history")
+def list_eval_history():
+    """Returns historical benchmark evaluation runs from Firestore or local store."""
+    return evals.get_eval_store().list_all()
+
+
+@app.get("/api/admin/traces/{case_id}/waterfall")
+def get_trace_waterfall(case_id: str):
+    """Returns OpenTelemetry span waterfall timeline for a specific case."""
+    spans = telemetry.get_case_waterfall_spans(case_id)
+    return {"case_id": case_id, "spans": spans}
+
 
 
 
