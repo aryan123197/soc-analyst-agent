@@ -9,8 +9,10 @@ vs /docs -- only /docs carried Cloud Run's `server: Google Frontend` and
 `x-cloud-trace-context` headers).
 """
 import json
+import os
 import queue
 from pathlib import Path
+
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
