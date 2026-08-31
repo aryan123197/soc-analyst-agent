@@ -294,10 +294,44 @@
     background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px;
     padding: 1.5rem; max-width: 500px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
   }
-  .modal-title { font-size: 15px; font-weight: 700; color: var(--accent-amber); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+  .modal-card.wide { max-width: 850px; }
+  .modal-title { font-size: 15px; font-weight: 700; color: var(--accent-amber); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
   .modal-body { font-size: 12px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.25rem; }
   .modal-code { background: #070a0f; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.4rem 0.6rem; font-family: var(--font-mono); font-size: 11px; color: var(--accent-cyan); display: block; margin: 0.5rem 0; }
   .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+
+  /* Navigation Tabs */
+  .nav-tabs { display: flex; gap: 0.5rem; margin-left: 1rem; }
+  .nav-tab {
+    background: rgba(30, 41, 59, 0.6); border: 1px solid var(--border-color); color: var(--text-secondary);
+    font-family: var(--font-sans); font-size: 12px; font-weight: 600; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;
+  }
+  .nav-tab:hover { background: rgba(51, 65, 85, 0.8); color: var(--text-primary); }
+  .nav-tab.active { background: linear-gradient(135deg, #0284c7, #2563eb); color: white; border-color: transparent; box-shadow: 0 0 10px rgba(2, 132, 199, 0.4); }
+
+  /* Observability KPI Deck */
+  .obs-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+  @media (max-width: 900px) { .obs-kpi-grid { grid-template-columns: 1fr 1fr; } }
+  .obs-kpi-card {
+    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; text-align: center;
+  }
+  .obs-kpi-card .val { font-size: 24px; font-weight: 700; font-family: var(--font-mono); margin-bottom: 2px; }
+  .obs-kpi-card .lbl { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* Evals Table */
+  .evals-table-container { overflow-x: auto; max-height: 400px; }
+  table.evals-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; text-align: left; }
+  table.evals-table th, table.evals-table td { padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-color); }
+  table.evals-table th { background: rgba(30, 41, 59, 0.8); color: var(--text-secondary); text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; position: sticky; top: 0; }
+  .pass-badge { background: var(--accent-green-bg); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.3); padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; }
+  .fail-badge { background: var(--accent-red-bg); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.3); padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; }
+
+  /* Waterfall Timeline Bars */
+  .waterfall-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; font-family: var(--font-mono); font-size: 11px; }
+  .waterfall-label { width: 180px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; color: var(--text-secondary); font-weight: 600; }
+  .waterfall-track { flex-grow: 1; background: rgba(30,41,59,0.5); height: 20px; border-radius: 4px; position: relative; overflow: hidden; }
+  .waterfall-bar { height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 4px; position: absolute; display: flex; align-items: center; padding: 0 6px; font-size: 10px; color: white; font-weight: 700; white-space: nowrap; }
+
 </style>
 </head>
 <body>
@@ -313,6 +347,11 @@
     </div>
   </div>
 
+  <div class="nav-tabs">
+    <button class="nav-tab active" id="tab-btn-live" onclick="switchView('live')">🛡️ Live Console</button>
+    <button class="nav-tab" id="tab-btn-obs" onclick="switchView('obs')">📊 Observability & Evals</button>
+  </div>
+
   <div class="status-badge">
     <span class="pulse-dot" id="dot"></span>
     <span id="conn-text">Connecting...</span>
@@ -326,7 +365,9 @@
   </div>
 </header>
 
-<main>
+<!-- Live Incident Console View -->
+<main id="view-live">
+
   <!-- Top Control Deck -->
   <div class="controls-grid">
     <!-- Preset Attack Corpus Runner -->
@@ -402,8 +443,109 @@
     <div class="empty-state" id="empty-state">
       Waiting for incident telemetry. Run an Attack Preset above, submit a Custom Payload, or Start the Replay Feed.
     </div>
+</main>
+
+<!-- Admin Observability & Evals View -->
+<main id="view-obs" hidden>
+  <!-- KPI Metrics Deck -->
+  <div class="obs-kpi-grid">
+    <div class="obs-kpi-card">
+      <div class="val total" id="obs-kpi-total">0</div>
+      <div class="lbl">Total Processed Cases</div>
+    </div>
+    <div class="obs-kpi-card">
+      <div class="val" style="color:var(--accent-cyan);" id="obs-kpi-latency">0 ms</div>
+      <div class="lbl">Avg Pipeline Latency</div>
+    </div>
+    <div class="obs-kpi-card">
+      <div class="val" style="color:var(--accent-red);" id="obs-kpi-block-rate">0%</div>
+      <div class="lbl">Model Armor Block Rate</div>
+    </div>
+    <div class="obs-kpi-card">
+      <div class="val" style="color:var(--accent-green);" id="obs-kpi-accuracy">100%</div>
+      <div class="lbl">Evals Accuracy Score</div>
+    </div>
+  </div>
+
+  <!-- Agent Benchmark Evals Panel -->
+  <div class="panel-card" style="margin-bottom: 1.5rem;">
+    <div class="panel-title">
+      <span>🧪 Agent Benchmark Evals Suite (Ground Truth Regression)</span>
+      <button class="btn btn-primary" id="btn-run-evals" onclick="runBenchmarkEvals()">
+        <span>Run Benchmark Suite (9 Cases)</span>
+      </button>
+    </div>
+    <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 1rem;" id="evals-summary-text">
+      Executes all 9 attack corpus payloads (including Base64/Hex evasion variants) and measures screening accuracy & triage degradation.
+    </div>
+
+    <div class="evals-table-container">
+      <table class="evals-table">
+        <thead>
+          <tr>
+            <th>Case Label</th>
+            <th>Channel</th>
+            <th>Expected Verdict</th>
+            <th>Actual Verdict</th>
+            <th>Threat Type</th>
+            <th>Latency</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="evals-table-body">
+          <tr>
+            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+              No evaluation run recorded yet. Click "Run Benchmark Suite" above to evaluate.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pipeline Hop Latency Breakdown Visualizer -->
+  <div class="panel-card">
+    <div class="panel-title">
+      <span>⚡ Average Latency per Pipeline Hop (ms)</span>
+    </div>
+    <div id="hop-latency-bars" style="display: flex; flex-direction: column; gap: 0.75rem; padding: 0.5rem 0;">
+      <div class="waterfall-row">
+        <span class="waterfall-label">1. Ingestion</span>
+        <div class="waterfall-track"><div class="waterfall-bar" id="bar-ingestion" style="width: 5%;">0 ms</div></div>
+      </div>
+      <div class="waterfall-row">
+        <span class="waterfall-label">2. Model Armor</span>
+        <div class="waterfall-track"><div class="waterfall-bar" id="bar-model_armor" style="width: 15%;">0 ms</div></div>
+      </div>
+      <div class="waterfall-row">
+        <span class="waterfall-label">3. Triage (Gemini 3.5)</span>
+        <div class="waterfall-track"><div class="waterfall-bar" id="bar-triage" style="width: 60%;">0 ms</div></div>
+      </div>
+      <div class="waterfall-row">
+        <span class="waterfall-label">4. Gateway Action</span>
+        <div class="waterfall-track"><div class="waterfall-bar" id="bar-action" style="width: 10%;">0 ms</div></div>
+      </div>
+      <div class="waterfall-row">
+        <span class="waterfall-label">5. Memory Bank</span>
+        <div class="waterfall-track"><div class="waterfall-bar" id="bar-memory_bank" style="width: 10%;">0 ms</div></div>
+      </div>
+    </div>
   </div>
 </main>
+
+<!-- OpenTelemetry Trace Waterfall Modal -->
+<div class="modal-overlay" id="waterfall-modal">
+  <div class="modal-card wide">
+    <div class="modal-title">
+      <span>🔍 OpenTelemetry Trace Waterfall Timeline</span>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeWaterfallModal()">✕</button>
+    </div>
+    <div class="modal-body" id="waterfall-modal-body">
+      Loading OpenTelemetry trace spans...
+    </div>
+  </div>
+</div>
+
 
 <!-- Gmail Setup Info Modal -->
 <div class="modal-overlay" id="gmail-modal">
@@ -557,8 +699,13 @@ function getOrCreateCaseCard(caseId) {
       <span class="degraded-pill" hidden>HEURISTIC FALLBACK</span>
       <span class="verdict-badge"></span>
     </div>
-    <div class="trace-toggle" onclick="toggleTraceDrawer('${escapeHtml(caseId)}')">
-      <span>▸ Reasoning Telemetry & Memory Bank Recall</span>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:0.6rem;">
+      <div class="trace-toggle" onclick="toggleTraceDrawer('${escapeHtml(caseId)}')">
+        <span>▸ Reasoning Telemetry & Memory Bank Recall</span>
+      </div>
+      <button class="btn btn-secondary" style="padding:0.2rem 0.6rem; font-size:11px; font-family:var(--font-mono);" onclick="showWaterfallModal('${escapeHtml(caseId)}')">
+        🔍 OTel Waterfall
+      </button>
     </div>
     <div class="trace-drawer" id="drawer-${escapeHtml(caseId)}"></div>
   `;
@@ -723,6 +870,166 @@ async function fetchSourceStatuses() {
   } catch (e) {}
 }
 
+function switchView(view) {
+  const liveView = document.getElementById("view-live");
+  const obsView = document.getElementById("view-obs");
+  const liveBtn = document.getElementById("tab-btn-live");
+  const obsBtn = document.getElementById("tab-btn-obs");
+
+  if (view === "obs") {
+    liveView.hidden = true;
+    obsView.hidden = false;
+    liveBtn.classList.remove("active");
+    obsBtn.classList.add("active");
+    fetchTelemetrySummary();
+    fetchEvalHistory();
+  } else {
+    liveView.hidden = false;
+    obsView.hidden = true;
+    liveBtn.classList.add("active");
+    obsBtn.classList.remove("active");
+  }
+}
+
+async function fetchTelemetrySummary() {
+  try {
+    const res = await fetch("/api/admin/metrics");
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById("obs-kpi-total").textContent = data.total_cases || 0;
+    document.getElementById("obs-kpi-latency").textContent = (data.avg_latency_ms || 0) + " ms";
+    document.getElementById("obs-kpi-block-rate").textContent = (data.armor_block_rate || 0) + "%";
+
+    // Update hop latency bars
+    const latencies = data.avg_hop_latencies_ms || {};
+    const maxLat = Math.max(...Object.values(latencies), 1.0);
+    for (const [hop, ms] of Object.entries(latencies)) {
+      const bar = document.getElementById(`bar-${hop}`);
+      if (bar) {
+        const pct = Math.max(5, Math.min(100, Math.round((ms / maxLat) * 100)));
+        bar.style.width = pct + "%";
+        bar.textContent = ms + " ms";
+      }
+    }
+  } catch (err) {
+    console.error("Telemetry summary fetch error:", err);
+  }
+}
+
+async function runBenchmarkEvals() {
+  const btn = document.getElementById("btn-run-evals");
+  btn.disabled = true;
+  btn.textContent = "Executing Evals (9 Cases)...";
+
+  try {
+    const res = await fetch("/api/admin/evals/run", { method: "POST" });
+    if (!res.ok) {
+      alert("Failed to execute benchmark evals.");
+      return;
+    }
+    const data = await res.json();
+    renderEvalRun(data);
+    fetchTelemetrySummary();
+  } catch (err) {
+    alert("Network error running evals: " + err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Run Benchmark Suite (9 Cases)";
+  }
+}
+
+function renderEvalRun(run) {
+  document.getElementById("obs-kpi-accuracy").textContent = run.accuracy_percent + "%";
+  const tbody = document.getElementById("evals-table-body");
+  tbody.innerHTML = "";
+
+  (run.case_results || []).forEach((c) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(c.label)}</strong></td>
+      <td>${escapeHtml(c.source_channel)}</td>
+      <td><code>${escapeHtml(c.expected_verdict)}</code></td>
+      <td><code>${escapeHtml(c.actual_verdict)}</code></td>
+      <td>${escapeHtml(c.actual_threat_type || "none")}</td>
+      <td>${c.latency_ms} ms</td>
+      <td>
+        <span class="${c.passed ? 'pass-badge' : 'fail-badge'}">
+          ${c.passed ? 'PASS' : 'FAIL'}
+        </span>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const text = document.getElementById("evals-summary-text");
+  text.innerHTML = `Last run <strong>${escapeHtml(run.run_id)}</strong>: ` +
+    `Passed <strong>${run.passed_cases}/${run.total_cases}</strong> cases ` +
+    `(${run.accuracy_percent}% accuracy) in ${run.avg_latency_ms} ms avg.`;
+}
+
+async function fetchEvalHistory() {
+  try {
+    const res = await fetch("/api/admin/evals/history");
+    if (!res.ok) return;
+    const history = await res.json();
+    if (history && history.length > 0) {
+      renderEvalRun(history[0]);
+    }
+  } catch (err) {
+    console.error("Eval history fetch error:", err);
+  }
+}
+
+async function showWaterfallModal(caseId) {
+  const modal = document.getElementById("waterfall-modal");
+  const body = document.getElementById("waterfall-modal-body");
+  modal.classList.add("active");
+  body.innerHTML = "<p style='color:var(--text-muted)'>Loading OpenTelemetry trace spans...</p>";
+
+  try {
+    const res = await fetch(`/api/admin/traces/${caseId}/waterfall`);
+    const data = await res.json();
+    const spans = data.spans || [];
+    if (spans.length === 0) {
+      body.innerHTML = `<p style='color:var(--text-muted)'>No OTel trace spans recorded for case ${escapeHtml(caseId)}.</p>`;
+      return;
+    }
+
+    const minT = Math.min(...spans.map((s) => s.start_time));
+    const maxT = Math.max(...spans.map((s) => s.end_time));
+    const totalMs = Math.max((maxT - minT) * 1000, 1.0);
+
+    let html = `<div style="font-family:var(--font-mono); font-size:12px; margin-bottom:1rem;">` +
+      `<strong>Case ID:</strong> ${escapeHtml(caseId)} | <strong>Total Trace Duration:</strong> ${totalMs.toFixed(2)} ms` +
+      `</div><div style="display:flex; flex-direction:column; gap:0.5rem;">`;
+
+    spans.forEach((s) => {
+      const offsetPct = Math.max(0, Math.min(100, ((s.start_time - minT) * 1000 / totalMs) * 100));
+      const widthPct = Math.max(2, Math.min(100 - offsetPct, (s.duration_ms / totalMs) * 100));
+
+      html += `
+        <div class="waterfall-row">
+          <span class="waterfall-label">${escapeHtml(s.name)}</span>
+          <div class="waterfall-track">
+            <div class="waterfall-bar" style="left:${offsetPct.toFixed(1)}%; width:${widthPct.toFixed(1)}%;">
+              ${s.duration_ms} ms
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    html += `</div>`;
+    body.innerHTML = html;
+  } catch (err) {
+    body.innerHTML = `<p style='color:var(--accent-red)'>Error loading trace spans: ${err}</p>`;
+  }
+}
+
+function closeWaterfallModal() {
+  document.getElementById("waterfall-modal").classList.remove("active");
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   loadCorpus();
   connectSSE();
@@ -731,3 +1038,4 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 </body>
 </html>
+

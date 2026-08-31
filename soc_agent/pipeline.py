@@ -15,12 +15,13 @@
             v
     Action agent (behind Agent Gateway, only write-capable identity)
 """
+import time
 from dataclasses import dataclass
 from typing import Optional
 
 from soc_agent import config
 from soc_agent.agents import action, ingestion, triage
-from soc_agent.services import events, model_armor, store, trace
+from soc_agent.services import events, model_armor, store, telemetry, trace
 
 
 @dataclass
@@ -43,17 +44,30 @@ def run_pipeline(
     store and no Memory Bank entry is written, so a long-running replay feed
     cannot pollute the recall corpus the real demo depends on (and doesn't pay
     for a synchronous embedding LRO per item)."""
-    item, tr = ingestion.ingest(
-        source_channel=source_channel, sender=sender, raw_text=raw_text, synthetic=synthetic
-    )
+    start_total_t = time.time()
+    hop_durations: dict[str, float] = {}
 
-    armor = model_armor.get_model_armor(
-        enabled=armor_enabled,
-        project=config.GOOGLE_CLOUD_PROJECT if config.USE_VERTEX_MODEL_ARMOR else None,
-        location=config.GOOGLE_CLOUD_LOCATION,
-        template_id=config.MODEL_ARMOR_TEMPLATE_ID,
-    )
-    armor_result = armor.screen(item.raw_text)
+    # Hop 1: Ingestion
+    t0 = time.time()
+    with telemetry.trace_span("ingestion_hop", attributes={"source_channel": source_channel, "sender": sender}):
+        item, tr = ingestion.ingest(
+            source_channel=source_channel, sender=sender, raw_text=raw_text, synthetic=synthetic
+        )
+    t1 = time.time()
+    hop_durations["ingestion"] = (t1 - t0) * 1000.0
+
+    # Hop 2: Model Armor screening
+    t0 = time.time()
+    with telemetry.trace_span("model_armor_hop", case_id=item.case_id, attributes={"armor_enabled": armor_enabled}):
+        armor = model_armor.get_model_armor(
+            enabled=armor_enabled,
+            project=config.GOOGLE_CLOUD_PROJECT if config.USE_VERTEX_MODEL_ARMOR else None,
+            location=config.GOOGLE_CLOUD_LOCATION,
+            template_id=config.MODEL_ARMOR_TEMPLATE_ID,
+        )
+        armor_result = armor.screen(item.raw_text)
+    t1 = time.time()
+    hop_durations["model_armor"] = (t1 - t0) * 1000.0
 
     case_store = store.get_case_store()
     case_store.update_case(
@@ -68,7 +82,12 @@ def run_pipeline(
     )
 
     if armor_result.verdict == "blocked":
-        action.quarantine(item.case_id, threat_type=armor_result.threat_type or "unknown", tr=tr)
+        t0 = time.time()
+        with telemetry.trace_span("quarantine_action_hop", case_id=item.case_id, attributes={"threat_type": armor_result.threat_type}):
+            action.quarantine(item.case_id, threat_type=armor_result.threat_type or "unknown", tr=tr)
+        t1 = time.time()
+        hop_durations["action"] = (t1 - t0) * 1000.0
+
         trace.persist_trace(tr)
         events.publish(
             "case_complete",
@@ -82,6 +101,22 @@ def run_pipeline(
                 "action_taken": None,
             },
         )
+        total_duration_ms = (time.time() - start_total_t) * 1000.0
+        telemetry.record_pipeline_telemetry(
+            case_id=item.case_id,
+            source_channel=source_channel,
+            outcome="quarantined",
+            armor_verdict=armor_result.verdict,
+            threat_type=armor_result.threat_type,
+            llm_used=False,
+            total_duration_ms=total_duration_ms,
+            hop_durations_ms=hop_durations
+        )
+        telemetry.log_event("pipeline_quarantined", {
+            "case_id": item.case_id,
+            "threat_type": armor_result.threat_type,
+            "duration_ms": round(total_duration_ms, 2)
+        })
         return PipelineResult(
             case_id=item.case_id,
             armor_result=armor_result,
@@ -90,28 +125,44 @@ def run_pipeline(
             trace=tr,
         )
 
-    triage_result = triage.triage(
-        case_id=item.case_id,
-        sender=sender,
-        channel=source_channel,
-        screened_content=item.raw_text,
-        tr=tr,
-    )
-
-    action_record = action.act(case_id=item.case_id, severity=triage_result.severity, tr=tr)
-
-    if synthetic:
-        tr.log("memory_bank", "skipped write (synthetic demo traffic)")
-    else:
-        triage.write_memory_summary(
-            sender=sender,
+    # Hop 3: Triage agent
+    t0 = time.time()
+    with telemetry.trace_span("triage_hop", case_id=item.case_id):
+        triage_result = triage.triage(
             case_id=item.case_id,
-            summary=(
-                f"{source_channel} from {sender} classified {triage_result.severity}/"
-                f"{triage_result.category}: {triage_result.reasoning}"
-            ),
+            sender=sender,
+            channel=source_channel,
+            screened_content=item.raw_text,
+            tr=tr,
         )
-        tr.log("memory_bank", f"wrote summary for sender domain of {sender}")
+    t1 = time.time()
+    hop_durations["triage"] = (t1 - t0) * 1000.0
+
+    # Hop 4: Gateway Action
+    t0 = time.time()
+    with telemetry.trace_span("gateway_action_hop", case_id=item.case_id, attributes={"severity": triage_result.severity}):
+        action_record = action.act(case_id=item.case_id, severity=triage_result.severity, tr=tr)
+    t1 = time.time()
+    hop_durations["action"] = (t1 - t0) * 1000.0
+
+    # Hop 5: Memory Bank recall summary
+    t0 = time.time()
+    with telemetry.trace_span("memory_bank_write_hop", case_id=item.case_id, attributes={"synthetic": synthetic}):
+        if synthetic:
+            tr.log("memory_bank", "skipped write (synthetic demo traffic)")
+        else:
+            triage.write_memory_summary(
+                sender=sender,
+                case_id=item.case_id,
+                summary=(
+                    f"{source_channel} from {sender} classified {triage_result.severity}/"
+                    f"{triage_result.category}: {triage_result.reasoning}"
+                ),
+            )
+            tr.log("memory_bank", f"wrote summary for sender domain of {sender}")
+    t1 = time.time()
+    hop_durations["memory_bank"] = (t1 - t0) * 1000.0
+
     trace.persist_trace(tr)
     events.publish(
         "case_complete",
@@ -127,6 +178,24 @@ def run_pipeline(
         },
     )
 
+    total_duration_ms = (time.time() - start_total_t) * 1000.0
+    telemetry.record_pipeline_telemetry(
+        case_id=item.case_id,
+        source_channel=source_channel,
+        outcome="actioned",
+        armor_verdict=armor_result.verdict,
+        threat_type=armor_result.threat_type,
+        llm_used=triage_result.llm_used,
+        total_duration_ms=total_duration_ms,
+        hop_durations_ms=hop_durations
+    )
+    telemetry.log_event("pipeline_actioned", {
+        "case_id": item.case_id,
+        "severity": triage_result.severity,
+        "action_taken": action_record.type,
+        "duration_ms": round(total_duration_ms, 2)
+    })
+
     return PipelineResult(
         case_id=item.case_id,
         armor_result=armor_result,
@@ -134,3 +203,4 @@ def run_pipeline(
         action_record=action_record,
         trace=tr,
     )
+
