@@ -36,10 +36,17 @@ def main() -> int:
         )
         return 1
 
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
     from google_auth_oauthlib.flow import InstalledAppFlow
 
     flow = InstalledAppFlow.from_client_secrets_file(secrets_path, SCOPES)
-    creds = flow.run_local_server(port=0, prompt="consent", access_type="offline")
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+    print(f"\n============================================================", flush=True)
+    print(f"[GMAIL OAUTH] Open this exact URL in your browser:\n\n{auth_url}\n", flush=True)
+    print(f"============================================================\n", flush=True)
+    creds = flow.run_local_server(port=8089, prompt="consent", access_type="offline", open_browser=True)
+
+
 
     if not creds.refresh_token:
         print(

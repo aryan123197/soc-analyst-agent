@@ -127,7 +127,38 @@ def log_event(event_type: str, payload: Dict[str, Any]):
 # -----------------------------------------------------------------------------
 # 4. Summary Telemetry Aggregator for Admin Dashboard
 # -----------------------------------------------------------------------------
-_telemetry_history: List[Dict[str, Any]] = []
+import json
+import threading
+from pathlib import Path
+from soc_agent import config
+
+_LOCAL_DIR = Path(__file__).resolve().parent.parent.parent / "local_data"
+_LOCAL_TELEMETRY_FILE = _LOCAL_DIR / "telemetry_history.json"
+_telemetry_lock = threading.Lock()
+
+class LocalTelemetryStore:
+    def __init__(self, path: Path = _LOCAL_TELEMETRY_FILE):
+        self._path = path
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        if not self._path.exists():
+            self._path.write_text("[]")
+
+    def save_all(self, history: List[Dict[str, Any]]) -> None:
+        with _telemetry_lock:
+            self._path.write_text(json.dumps(history, indent=2))
+
+    def load_all(self) -> List[Dict[str, Any]]:
+        with _telemetry_lock:
+            try:
+                return json.loads(self._path.read_text() or "[]")
+            except Exception:
+                return []
+
+def _get_telemetry_store():
+    return LocalTelemetryStore()
+
+_telemetry_history: List[Dict[str, Any]] = _get_telemetry_store().load_all()
+
 
 def record_pipeline_telemetry(
     case_id: str,
@@ -153,6 +184,9 @@ def record_pipeline_telemetry(
     _telemetry_history.append(entry)
     if len(_telemetry_history) > 1000:
         _telemetry_history.pop(0)
+
+    # Persist updated telemetry history
+    _get_telemetry_store().save_all(_telemetry_history)
 
     # Increment Prometheus metrics
     PIPELINE_CASES_TOTAL.labels(status=outcome, source_channel=source_channel).inc()
@@ -181,6 +215,7 @@ def get_telemetry_summary() -> Dict[str, Any]:
                 "memory_bank": 0.0
             }
         }
+
 
     total_latency = sum(t["total_duration_ms"] for t in _telemetry_history)
     quarantined = sum(1 for t in _telemetry_history if t["outcome"] == "quarantined")

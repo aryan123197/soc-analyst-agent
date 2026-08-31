@@ -8,4 +8,6 @@ __pycache__/
 local_data/
 SUBMISSION.md
 DEMO_SCRIPT.md
+client_secret*.json
+
 

@@ -164,10 +164,34 @@ def trigger_benchmark_evals():
     return eval_run.to_dict()
 
 
+class CustomEvalRequest(BaseModel):
+    label: str = "custom_test"
+    source_channel: str = "ticket"
+    sender: str = "user@corp.example"
+    raw_text: str
+    expected_verdict: str  # "blocked" | "clean"
+    expected_threat_type: str | None = None
+
+
+@app.post("/api/admin/evals/custom")
+def trigger_custom_eval(req: CustomEvalRequest):
+    """Evaluates an arbitrary custom payload against an expected verdict."""
+    case_eval = evals.run_custom_eval_case(
+        label=req.label,
+        source_channel=req.source_channel,
+        sender=req.sender,
+        raw_text=req.raw_text,
+        expected_verdict=req.expected_verdict,
+        expected_threat_type=req.expected_threat_type
+    )
+    return case_eval.to_dict()
+
+
 @app.get("/api/admin/evals/history")
 def list_eval_history():
     """Returns historical benchmark evaluation runs from Firestore or local store."""
     return evals.get_eval_store().list_all()
+
 
 
 @app.get("/api/admin/traces/{case_id}/waterfall")

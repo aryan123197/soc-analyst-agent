@@ -192,3 +192,49 @@ def run_benchmark_evals() -> EvalRun:
     get_eval_store().save(eval_run)
 
     return eval_run
+
+
+def run_custom_eval_case(
+    label: str,
+    source_channel: str,
+    sender: str,
+    raw_text: str,
+    expected_verdict: str,
+    expected_threat_type: Optional[str] = None,
+) -> CaseEvalResult:
+    """Evaluates a single custom user-provided payload against expected verdict."""
+    from soc_agent.pipeline import run_pipeline
+
+    t0 = time.time()
+    res = run_pipeline(
+        source_channel=source_channel,
+        sender=sender,
+        raw_text=raw_text,
+        armor_enabled=True,
+        synthetic=True
+    )
+    t1 = time.time()
+    latency = (t1 - t0) * 1000.0
+
+    actual_verdict = res.armor_result.verdict
+    actual_threat = res.armor_result.threat_type
+    passed = (actual_verdict == expected_verdict)
+
+    triage_severity = res.triage_result.severity if res.triage_result else None
+    llm_used = res.triage_result.llm_used if res.triage_result else False
+
+    return CaseEvalResult(
+        label=label or "custom_payload_test",
+        description="Custom user-submitted payload evaluation",
+        source_channel=source_channel,
+        sender=sender,
+        expected_verdict=expected_verdict,
+        actual_verdict=actual_verdict,
+        expected_threat_type=expected_threat_type,
+        actual_threat_type=actual_threat,
+        passed=passed,
+        triage_severity=triage_severity,
+        llm_used=llm_used,
+        latency_ms=latency
+    )
+

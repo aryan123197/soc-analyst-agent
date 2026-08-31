@@ -578,6 +578,45 @@
     </div>
   </div>
 
+  <!-- Custom Payload Eval Tester Panel -->
+  <div class="panel-card" style="margin-bottom: 1.5rem;">
+    <div class="panel-title">
+      <span>🎯 Custom Payload Eval Tester</span>
+      <span style="font-size: 11px; color: var(--accent-cyan);">Evaluate Any Arbitrary Payload Live</span>
+    </div>
+    <form id="custom-eval-form" onsubmit="submitCustomEval(event)">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Test Label</label>
+          <input type="text" id="ceval-label" value="custom_zero_day_probe" required>
+        </div>
+        <div class="form-group">
+          <label>Channel</label>
+          <select id="ceval-channel">
+            <option value="ticket">ticket (Helpdesk)</option>
+            <option value="email">email (Inbox)</option>
+            <option value="scraped_page">scraped_page (Web Log)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Expected Verdict</label>
+          <select id="ceval-expected">
+            <option value="blocked">blocked (Should Quarantine)</option>
+            <option value="clean">clean (Should Allow Triage)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Custom Payload Content</label>
+        <textarea id="ceval-text" required placeholder="Type any custom attack payload, zero-day injection, or email text to evaluate..."></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="ceval-btn">
+        <span>Evaluate Custom Payload</span>
+      </button>
+    </form>
+  </div>
+
+
   <!-- Pipeline Hop Latency Breakdown Visualizer -->
   <div class="panel-card">
     <div class="panel-title">
@@ -1103,11 +1142,56 @@ async function runBenchmarkEvals() {
     fetchTelemetrySummary();
   } catch (err) {
     alert("Network error running evals: " + err);
+async function submitCustomEval(e) {
+  e.preventDefault();
+  const btn = document.getElementById("ceval-btn");
+  btn.disabled = true;
+  btn.textContent = "Evaluating Custom Payload...";
+
+  const payload = {
+    label: document.getElementById("ceval-label").value,
+    source_channel: document.getElementById("ceval-channel").value,
+    sender: "custom-eval-tester@local.corp",
+    raw_text: document.getElementById("ceval-text").value,
+    expected_verdict: document.getElementById("ceval-expected").value
+  };
+
+  try {
+    const res = await fetch("/api/admin/evals/custom", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      alert("Failed to evaluate custom payload.");
+      return;
+    }
+    const c = await res.json();
+    const tbody = document.getElementById("evals-table-body");
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(c.label)}</strong> <span style="font-size:10px; color:var(--accent-cyan);">(CUSTOM)</span></td>
+      <td>${escapeHtml(c.source_channel)}</td>
+      <td><code>${escapeHtml(c.expected_verdict)}</code></td>
+      <td><code>${escapeHtml(c.actual_verdict)}</code></td>
+      <td>${escapeHtml(c.actual_threat_type || "none")}</td>
+      <td>${c.latency_ms} ms</td>
+      <td>
+        <span class="${c.passed ? 'pass-badge' : 'fail-badge'}">
+          ${c.passed ? 'PASS' : 'FAIL'}
+        </span>
+      </td>
+    `;
+    tbody.prepend(tr);
+    fetchTelemetrySummary();
+  } catch (err) {
+    alert("Network error evaluating custom payload: " + err);
   } finally {
     btn.disabled = false;
-    btn.textContent = "Run Benchmark Suite (9 Cases)";
+    btn.textContent = "Evaluate Custom Payload";
   }
 }
+
 
 function renderEvalRun(run) {
   document.getElementById("obs-kpi-accuracy").textContent = run.accuracy_percent + "%";
