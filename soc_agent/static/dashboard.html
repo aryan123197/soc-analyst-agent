@@ -104,6 +104,9 @@
 
   /* Main Container */
   main { max-width: 1350px; margin: 0 auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
+  main[hidden] { display: none !important; }
+  [hidden] { display: none !important; }
+
 
   /* Grid Layout for Controls */
   .controls-grid {
@@ -1107,18 +1110,23 @@ function switchView(view) {
 
   if (view === "obs") {
     liveView.hidden = true;
+    liveView.style.display = "none";
     obsView.hidden = false;
+    obsView.style.display = "flex";
     liveBtn.classList.remove("active");
     obsBtn.classList.add("active");
     fetchTelemetrySummary();
     fetchEvalHistory();
   } else {
     liveView.hidden = false;
+    liveView.style.display = "flex";
     obsView.hidden = true;
+    obsView.style.display = "none";
     liveBtn.classList.add("active");
     obsBtn.classList.remove("active");
   }
 }
+
 
 async function fetchTelemetrySummary() {
   try {
