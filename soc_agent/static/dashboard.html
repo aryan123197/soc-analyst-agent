@@ -282,6 +282,22 @@
     text-align: center; padding: 3rem 1.5rem; color: var(--text-muted);
     border: 2px dashed var(--border-color); border-radius: 8px; font-family: var(--font-mono);
   }
+
+  /* Modal Overlay for Gmail OAuth info */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+  }
+  .modal-overlay.active { opacity: 1; pointer-events: auto; }
+  .modal-card {
+    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px;
+    padding: 1.5rem; max-width: 500px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .modal-title { font-size: 15px; font-weight: 700; color: var(--accent-amber); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+  .modal-body { font-size: 12px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.25rem; }
+  .modal-code { background: #070a0f; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.4rem 0.6rem; font-family: var(--font-mono); font-size: 11px; color: var(--accent-cyan); display: block; margin: 0.5rem 0; }
+  .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -325,7 +341,7 @@
     </div>
 
     <!-- Custom Payload Submitter -->
-    <div class="panel-card">
+    <div class="panel-card" id="submitter-card">
       <div class="panel-title">
         <span>🛡️ Payload Tester & Armor Toggle</span>
         <span style="font-size: 11px; color: var(--accent-green);" id="armor-status-badge">ARMORED (ACTIVE)</span>
@@ -378,7 +394,7 @@
     </div>
     <div class="button-group">
       <button class="btn btn-secondary" id="btn-replay" onclick="toggleSource('replay')">Start Replay Feed</button>
-      <button class="btn btn-secondary" id="btn-gmail" onclick="toggleSource('gmail')">Start Monitored Inbox Watch</button>
+      <button class="btn btn-secondary" id="btn-gmail" onclick="handleGmailClick()">Start Monitored Inbox Watch</button>
     </div>
   </div>
 
@@ -389,6 +405,28 @@
   </div>
 </main>
 
+<!-- Gmail Setup Info Modal -->
+<div class="modal-overlay" id="gmail-modal">
+  <div class="modal-card">
+    <div class="modal-title">
+      <span>📧 Gmail Monitored Inbox Setup Required</span>
+    </div>
+    <div class="modal-body">
+      Connecting a live Gmail inbox requires a one-time OAuth consent authorization to mint read-only API keys.
+      <br><br>
+      To enable live Gmail inbox polling:
+      <span class="modal-code">python -m soc_agent.scripts.gmail_auth</span>
+      Set <code style="color:var(--accent-cyan)">GMAIL_CLIENT_ID</code>, <code style="color:var(--accent-cyan)">GMAIL_CLIENT_SECRET</code>, and <code style="color:var(--accent-cyan)">GMAIL_REFRESH_TOKEN</code> in your environment.
+      <br><br>
+      For instant continuous live incident streaming without OAuth setup, use the <strong>Replay Feed</strong> below!
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeGmailModal()">Close</button>
+      <button class="btn btn-primary" onclick="closeGmailModal(); toggleSource('replay');">Start Replay Feed</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const STAGES = ["ingestion", "model_armor", "triage", "action"];
 const STAGE_LABELS = { ingestion: "INGESTION", model_armor: "MODEL ARMOR", triage: "TRIAGE (GEMINI 3.5)", action: "GATEWAY ACTION" };
@@ -396,6 +434,7 @@ const STAGE_LABELS = { ingestion: "INGESTION", model_armor: "MODEL ARMOR", triag
 const casesMap = new Map();
 const stats = { total: 0, blocked: 0, esc: 0, clean: 0 };
 let corpusData = [];
+let isGmailConfigured = false;
 
 function escapeHtml(str) {
   return String(str == null ? "" : str).replace(/[&<>"']/g, c => ({
@@ -433,7 +472,7 @@ async function loadCorpus() {
     const listEl = document.getElementById("preset-list");
     listEl.innerHTML = "";
 
-    corpusData.forEach((item, index) => {
+    corpusData.forEach((item) => {
       const el = document.createElement("div");
       el.className = "preset-item";
       const isBlocked = item.expected_verdict === "blocked";
@@ -458,6 +497,11 @@ function selectPreset(item) {
   document.getElementById("input-channel").value = item.source_channel || "ticket";
   document.getElementById("input-sender").value = item.sender || "";
   document.getElementById("input-text").value = item.raw_text || "";
+  
+  // Highlight submit button to show preset is loaded
+  const submitBtn = document.getElementById("submit-btn");
+  submitBtn.style.transform = "scale(1.02)";
+  setTimeout(() => { submitBtn.style.transform = "none"; }, 300);
 }
 
 async function submitCustomPayload(e) {
@@ -634,6 +678,18 @@ function updateSourceBtn(src) {
   btn.style.color = isRunning ? "var(--accent-green)" : "";
 }
 
+function handleGmailClick() {
+  if (!isGmailConfigured && !sourceState.gmail) {
+    document.getElementById("gmail-modal").classList.add("active");
+  } else {
+    toggleSource("gmail");
+  }
+}
+
+function closeGmailModal() {
+  document.getElementById("gmail-modal").classList.remove("active");
+}
+
 async function toggleSource(src) {
   const want = !sourceState[src];
   try {
@@ -661,6 +717,7 @@ async function fetchSourceStatuses() {
     const data = await res.json();
     sourceState.gmail = data.gmail.running;
     sourceState.replay = data.replay.running;
+    isGmailConfigured = !!data.gmail.configured;
     updateSourceBtn("gmail");
     updateSourceBtn("replay");
   } catch (e) {}
